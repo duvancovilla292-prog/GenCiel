@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#14151a">
+    <title>Motor Genealógico</title>
+    <link rel="icon" href="img/gene-sequencing.svg">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <a class="skip-link" href="#viewport">Saltar al lienzo</a>
+
+    <div id="ui-layer">
+        <div class="toolbar">
+            <div class="tb-group" id="grp-add">
+                <button id="btn-add-person" title="Agregar persona">＋ Persona</button>
+                <button id="btn-add-union" title="Agregar unión (pareja)">＋ Unión</button>
+            </div>
+
+            <!-- Buscador rápido -->
+            <div class="search-box">
+                <input type="search" id="search-input" placeholder="Buscar persona…  (Ctrl+K)"
+                       autocomplete="off" spellcheck="false" aria-label="Buscar persona"
+                       role="combobox" aria-expanded="false" aria-controls="search-results" aria-autocomplete="list">
+                <ul id="search-results" role="listbox" hidden></ul>
+            </div>
+
+            <!-- Menú plegable (☰) en móvil; en escritorio sus grupos se muestran en línea -->
+            <button id="btn-menu" class="tb-menu" aria-expanded="false" aria-controls="toolbar-more" aria-label="Más acciones">☰</button>
+
+            <div id="toolbar-more" class="toolbar-more">
+                <div class="tb-group" aria-label="Historial">
+                    <button id="btn-undo" title="Deshacer (Ctrl+Z)" aria-label="Deshacer" disabled>↶ <span class="lbl-m">Deshacer</span></button>
+                    <button id="btn-redo" title="Rehacer (Ctrl+Y)" aria-label="Rehacer" disabled>↷ <span class="lbl-m">Rehacer</span></button>
+                </div>
+
+                <div class="tb-group" aria-label="Vista">
+                    <button id="btn-center" title="Ajustar la vista al árbol (0)">Centrar vista</button>
+                    <button id="btn-layout" title="Reorganizar por generaciones (L)">Auto-organizar</button>
+                    <button id="btn-minimap" title="Mostrar u ocultar el minimapa (M)" aria-pressed="true">Minimapa</button>
+                    <button id="btn-stats" title="Estadísticas del árbol">Estadísticas</button>
+                </div>
+
+                <div class="tb-group" aria-label="Archivo">
+                    <button id="btn-export" title="Descargar el árbol como JSON">Exportar JSON</button>
+                    <input type="file" id="input-import" accept=".json" hidden>
+                    <button id="btn-import">Importar JSON</button>
+                    <div class="menu-wrap">
+                        <button id="btn-export-img" title="Exportar como imagen" aria-haspopup="true" aria-expanded="false" aria-controls="export-menu">Imagen ▾</button>
+                        <div id="export-menu" class="menu" role="menu" hidden>
+                            <button role="menuitem" data-export="png">PNG (alta resolución)</button>
+                            <button role="menuitem" data-export="svg">SVG (vectorial)</button>
+                        </div>
+                    </div>
+                    <button id="btn-new" title="Vaciar el lienzo (se puede deshacer)">Nuevo</button>
+                </div>
+            </div>
+
+            <!-- Estado de sincronización: guardando · guardado en la nube · sin conexión · solo local · error -->
+            <div id="sync-status" class="sync" data-state="connecting" role="status" aria-live="polite">
+                <span class="dot" aria-hidden="true"></span><span class="txt">Conectando…</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Barra del foco familiar -->
+    <div id="focus-bar" role="group" aria-label="Foco familiar" hidden>
+        <span id="focus-label"></span>
+        <div class="seg">
+            <button type="button" data-focus="ancestors" aria-pressed="false">Ascendentes</button>
+            <button type="button" data-focus="descendants" aria-pressed="false">Descendientes</button>
+            <button type="button" data-focus="both" aria-pressed="false">Ambos</button>
+        </div>
+        <button type="button" id="btn-focus-exit" class="btn-exit">Salir del foco</button>
+    </div>
+
+    <aside id="details-panel" class="hidden" aria-labelledby="panel-title" aria-hidden="true" inert>
+        <div id="drawer-handle" class="drawer-handle" aria-hidden="true"><span></span></div>
+        <h2 id="panel-title">Detalles</h2>
+        <form id="node-form">
+            <!-- Persona -->
+            <div id="sec-person" hidden>
+                <img id="f-img-preview" class="img-preview" alt="Vista previa de la imagen">
+                <label>Imagen (URL o ruta) <input type="text" id="f-img" placeholder="https://… o img/foto.jpg" autocomplete="off" spellcheck="false"></label>
+                <label>Nombres <input type="text" id="f-name"></label>
+                <label>Apellidos <input type="text" id="f-lastname"></label>
+                <label>Género
+                    <select id="f-gender">
+                        <option value="M">Masculino</option>
+                        <option value="F">Femenino</option>
+                        <option value="O">Otro</option>
+                    </select>
+                </label>
+                <label>Lugar de nacimiento <input type="text" id="f-birthplace"></label>
+                <label>Fecha de nacimiento <input type="date" id="f-birthdate"></label>
+                <label>Fecha de defunción <input type="date" id="f-deathdate"></label>
+                <p>Edad calculada: <strong id="f-age">N/A</strong></p>
+                <label>Descripción <textarea id="f-desc" rows="4"></textarea></label>
+
+                <fieldset class="focus-box">
+                    <legend>Foco familiar</legend>
+                    <div class="seg">
+                        <button type="button" data-focus="ancestors">Ascendentes</button>
+                        <button type="button" data-focus="descendants">Descendientes</button>
+                        <button type="button" data-focus="both">Ambos</button>
+                    </div>
+                </fieldset>
+            </div>
+
+            <!-- Unión -->
+            <div id="sec-union" hidden>
+                <label>Estado de la pareja
+                    <select id="f-union-status">
+                        <option value="active">Activa</option>
+                        <option value="separated">Separados</option>
+                        <option value="divorced">Divorciados</option>
+                    </select>
+                </label>
+                <label>Inicio <input type="date" id="f-union-start"></label>
+                <label>Fin <input type="date" id="f-union-end"></label>
+            </div>
+
+            <!-- Conexión -->
+            <div id="sec-edge" hidden>
+                <p id="f-edge-info"></p>
+                <label id="row-reltype">Tipo de parentesco
+                    <select id="f-reltype">
+                        <option value="blood">Consanguíneo</option>
+                        <option value="adopted">Adoptado/a</option>
+                        <option value="stepchild">Hijastro/a</option>
+                    </select>
+                </label>
+                <button type="button" id="btn-flip-edge" class="btn-secondary">Invertir dirección</button>
+            </div>
+
+            <div class="panel-actions">
+                <button type="submit" class="btn-save">Guardar</button>
+                <button type="button" id="btn-close-panel">Cerrar</button>
+            </div>
+            <button type="button" id="btn-delete-node" class="btn-delete">Eliminar</button>
+        </form>
+    </aside>
+
+    <div id="viewport" tabindex="-1">
+        <div id="workspace">
+            <svg id="edges-layer" aria-hidden="true"></svg>
+            <div id="nodes-layer"></div>
+        </div>
+    </div>
+
+    <!-- Estado vacío -->
+    <section id="empty-state" class="empty" hidden aria-labelledby="empty-title">
+        <svg class="empty-art" viewBox="0 0 120 96" width="120" height="96" aria-hidden="true">
+            <g fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                <path d="M60 30v14M60 44H30v14M60 44h30v14"/>
+                <rect x="40" y="6" width="40" height="24" rx="7"/>
+                <rect x="10" y="58" width="40" height="24" rx="7" stroke-dasharray="2 6"/>
+                <rect x="70" y="58" width="40" height="24" rx="7" stroke-dasharray="2 6"/>
+            </g>
+        </svg>
+        <h2 id="empty-title">Tu árbol está vacío</h2>
+        <p>Empieza con una persona y conéctala con uniones e hijos. Todo se guarda solo y se sincroniza en la nube.</p>
+        <div class="empty-actions">
+            <button type="button" id="empty-add" class="btn-primary">＋ Agregar primera persona</button>
+            <button type="button" id="empty-import" class="btn-ghost">Importar un JSON</button>
+        </div>
+    </section>
+
+    <!-- Minimapa -->
+    <div id="minimap" role="img" aria-label="Minimapa: tu posición dentro del árbol. Arrastra para moverte.">
+        <canvas id="minimap-canvas"></canvas>
+    </div>
+
+    <!-- Leyenda de conexiones -->
+    <div id="legend" aria-hidden="true">
+        <span><svg width="28" height="8"><line x1="1" y1="4" x2="27" y2="4" stroke="#7f8799" stroke-width="2.5" stroke-linecap="round"/></svg>Consanguíneo</span>
+        <span><svg width="28" height="8"><line x1="1" y1="4" x2="27" y2="4" stroke="#64B5F6" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="8 5"/></svg>Adoptado/a</span>
+        <span><svg width="28" height="8"><line x1="1" y1="4" x2="27" y2="4" stroke="#BA68C8" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="1 6"/></svg>Hijastro/a</span>
+        <span><svg width="28" height="8"><line x1="1" y1="4" x2="27" y2="4" stroke="#FF9800" stroke-width="2.5" stroke-linecap="round"/></svg>Pareja activa</span>
+        <span><svg width="28" height="8"><line x1="1" y1="4" x2="27" y2="4" stroke="#6b717f" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="6 5"/></svg>Pareja finalizada</span>
+    </div>
+
+    <!-- Modal de estadísticas -->
+    <div id="stats-modal" class="modal" hidden>
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="stats-title">
+            <header>
+                <h2 id="stats-title">Estadísticas del árbol</h2>
+                <button type="button" id="btn-stats-close" aria-label="Cerrar">✕</button>
+            </header>
+            <div id="stats-grid" class="stats-grid"></div>
+            <p class="stats-note">Calculado en vivo a partir del árbol actual. Las generaciones son una estimación según las conexiones; la edad usa la fecha de defunción cuando existe.</p>
+        </div>
+    </div>
+
+    <div id="toast" role="status"></div>
+
+    <!-- Módulos ES (requieren servir por http/https; ver README). Firebase se carga dinámicamente desde js/sync.js -->
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>

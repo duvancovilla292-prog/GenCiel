@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <!-- Gradiente Obsidian & Gold -->
+    <linearGradient id="gold-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFD700" />
+      <stop offset="50%" stop-color="#FFA500" />
+      <stop offset="100%" stop-color="#CC8400" />
+    </linearGradient>
+
+    <!-- Gradiente Purple Imperial -->
+    <linearGradient id="purple-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#A855F7" />
+      <stop offset="100%" stop-color="#6B21A8" />
+    </linearGradient>
+
+    <!-- Resplandor de Neón -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Fondo Oscuro Obsidiana -->
+  <rect width="500" height="500" rx="32" fill="#0B0B0E" />
+
+  <!-- Cuadrícula de Ajedrez Sutil en el Fondo -->
+  <g opacity="0.05" stroke="#FFFFFF" stroke-width="1">
+    <path d="M 100 0 V 500 M 200 0 V 500 M 300 0 V 500 M 400 0 V 500" />
+    <path d="M 0 100 H 500 M 0 200 H 500 M 0 300 H 500 M 0 400 H 500" />
+  </g>
+
+  <!-- Conexiones / Aristas Genealógicas (Ramas) -->
+  <g stroke="url(#gold-grad)" stroke-width="4" fill="none" stroke-linecap="round" filter="url(#glow)">
+    <!-- Rama Central (Tronco de la Pieza) -->
+    <path d="M 250 370 C 250 300, 250 240, 250 180" />
+    
+    <!-- Ramas Superiores (Ascendencia / Reyes) -->
+    <path d="M 250 220 C 250 150, 150 150, 150 100" />
+    <path d="M 250 220 C 250 150, 350 150, 350 100" />
+    <path d="M 150 100 C 150 60, 90 60, 90 40" />
+    <path d="M 150 100 C 150 60, 210 60, 210 40" />
+    <path d="M 350 100 C 350 60, 290 60, 290 40" />
+    <path d="M 350 100 C 350 60, 410 60, 410 40" />
+
+    <!-- Enlaces entre Nodos / Parejas -->
+    <path d="M 150 100 H 350" stroke-dasharray="6 6" opacity="0.6" />
+  </g>
+
+  <!-- Base de Pieza de Ajedrez (Rey / Torre) -->
+  <path d="M 160 440 
+           C 160 420, 180 410, 200 400 
+           L 210 360 
+           C 230 355, 270 355, 290 360 
+           L 300 400 
+           C 320 410, 340 420, 340 440 
+           Z" fill="url(#purple-grad)" stroke="url(#gold-grad)" stroke-width="3" />
+  <rect x="140" y="440" width="220" height="20" rx="6" fill="url(#gold-grad)" />
+
+  <!-- Nodos del Árbol (Representando Peones, Reyes y Reinas) -->
+  
+  <!-- Nivel 0 (Raíz / Reyes Ancestrales) -->
+  <g id="node-king-left">
+    <circle cx="90" cy="40" r="16" fill="#14151A" stroke="url(#gold-grad)" stroke-width="3" />
+    <!-- Cruz de Rey -->
+    <path d="M 90 32 V 48 M 82 40 H 98" stroke="#FFD700" stroke-width="2.5" />
+  </g>
+
+  <g id="node-queen-left">
+    <circle cx="210" cy="40" r="16" fill="#14151A" stroke="url(#purple-grad)" stroke-width="3" />
+    <!-- Corona de Reina -->
+    <path d="M 202 44 L 204 35 L 210 41 L 216 35 L 218 44 Z" fill="#A855F7" />
+  </g>
+
+  <g id="node-king-right">
+    <circle cx="290" cy="40" r="16" fill="#14151A" stroke="url(#purple-grad)" stroke-width="3" />
+    <path d="M 282 44 L 284 35 L 290 41 L 296 35 L 298 44 Z" fill="#A855F7" />
+  </g>
+
+  <g id="node-queen-right">
+    <circle cx="410" cy="40" r="16" fill="#14151A" stroke="url(#gold-grad)" stroke-width="3" />
+    <path d="M 410 32 V 48 M 402 40 H 418" stroke="#FFD700" stroke-width="2.5" />
+  </g>
+
+  <!-- Nivel 1 (Generación Intermedia) -->
+  <g id="node-parent-1">
+    <circle cx="150" cy="100" r="22" fill="#1D1F26" stroke="url(#gold-grad)" stroke-width="3.5" filter="url(#glow)" />
+    <!-- Peón -->
+    <circle cx="150" cy="94" r="6" fill="#FFD700" />
+    <path d="M 142 108 C 142 102, 158 102, 158 108 Z" fill="#FFD700" />
+  </g>
+
+  <g id="node-parent-2">
+    <circle cx="350" cy="100" r="22" fill="#1D1F26" stroke="url(#purple-grad)" stroke-width="3.5" filter="url(#glow)" />
+    <!-- Peón -->
+    <circle cx="350" cy="94" r="6" fill="#A855F7" />
+    <path d="M 342 108 C 342 102, 358 102, 358 108 Z" fill="#A855F7" />
+  </g>
+
+  <!-- Nivel 2 (Nodo Central / Unión Origen) -->
+  <g id="node-center-union">
+    <circle cx="250" cy="220" r="28" fill="#0B0B0E" stroke="url(#gold-grad)" stroke-width="4" filter="url(#glow)" />
+    <!-- Corona Central Combinada -->
+    <path d="M 238 226 L 242 212 L 250 220 L 258 212 L 262 226 Z" fill="url(#gold-grad)" />
+    <circle cx="250" cy="206" r="3" fill="#FFD700" />
+  </g>
+</svg>
