@@ -1,5 +1,8 @@
 # Motor Genealógico
 
+<img width="1885" height="940" alt="image" src="https://github.com/user-attachments/assets/e90ce2da-5cb1-48ea-938d-cc05d6feb4b2" />
+
+
 Editor visual de árboles genealógicos que corre en el navegador, sin framework ni paso de compilación. Los nodos (personas y uniones) y las conexiones (parentesco y pareja) se dibujan sobre un lienzo infinito con zoom y desplazamiento. Los datos se sincronizan en tiempo real con **Firebase Firestore** y se respaldan en `localStorage`.
 
 ## Tecnologías
