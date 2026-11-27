@@ -2,8 +2,8 @@
 // Dibuja en <canvas> los nodos visibles y el rectángulo del viewport. Pulsar/arrastrar sobre el minimapa
 // centra la vista en ese punto. Los redibujados se agrupan con requestAnimationFrame.
 
-import { NODE_SIZE, COLORS } from './config.js';
-import { $, state, on } from './state.js';
+import { themeColors } from './config.js';
+import { $, state, on, nodeRect } from './state.js';
 import { isVisible } from './render.js';
 import { applyTransform, visibleSize, stopViewAnimation } from './view.js';
 
@@ -16,9 +16,8 @@ function bounds() {
   let x0 = vx, y0 = vy, x1 = vx + vp.width / scale, y1 = vy + vp.height / scale;
   for (const n of state.graph.nodes) {
     if (!isVisible(n.id)) continue;
-    const { w, h } = NODE_SIZE[n.type];
-    x0 = Math.min(x0, n.position.x - w / 2); x1 = Math.max(x1, n.position.x + w / 2);
-    y0 = Math.min(y0, n.position.y - h / 2); y1 = Math.max(y1, n.position.y + h / 2);
+    const r = nodeRect(n);
+    x0 = Math.min(x0, r.x0); x1 = Math.max(x1, r.x1); y0 = Math.min(y0, r.y0); y1 = Math.max(y1, r.y1);
   }
   return { x0: x0 - 60, y0: y0 - 60, x1: x1 + 60, y1: y1 + 60 };
 }
@@ -36,18 +35,18 @@ function draw() {
   if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
-  const m = frozen || mapping(bounds());
+  const m = frozen || mapping(bounds()), COLORS = themeColors();
 
   for (const n of state.graph.nodes) {
     if (!isVisible(n.id)) continue;
-    const { w: nw, h: nh } = NODE_SIZE[n.type];
+    const nw = n.type === 'union' ? 36 : 92;
     if (n.type === 'union') {
       ctx.fillStyle = COLORS.union; ctx.beginPath();
       ctx.arc(n.position.x * m.k + m.ox, n.position.y * m.k + m.oy, Math.max(1.6, nw * m.k / 2), 0, Math.PI * 2); ctx.fill();
     } else {
       ctx.fillStyle = COLORS.gender[n.data.gender] || COLORS.dim;
-      const rw = Math.max(3, nw * m.k), rh = Math.max(2, nh * m.k);
-      ctx.fillRect(n.position.x * m.k + m.ox - rw / 2, n.position.y * m.k + m.oy - rh / 2, rw, rh);
+      const rw = Math.max(3, nw * m.k);
+      ctx.beginPath(); ctx.roundRect(n.position.x * m.k + m.ox - rw / 2, n.position.y * m.k + m.oy - rw / 2, rw, rw, Math.min(4, rw / 4)); ctx.fill();
     }
   }
 
@@ -55,7 +54,7 @@ function draw() {
   const vp = $('viewport').getBoundingClientRect(), { pan, scale } = state;
   const rx = (-pan.x / scale) * m.k + m.ox, ry = (-pan.y / scale) * m.k + m.oy;
   const rw = (vp.width / scale) * m.k, rh = (vp.height / scale) * m.k;
-  ctx.fillStyle = 'rgba(59,158,255,.14)'; ctx.fillRect(rx, ry, rw, rh);
+  ctx.globalAlpha = .12; ctx.fillStyle = COLORS.accent; ctx.fillRect(rx, ry, rw, rh); ctx.globalAlpha = 1;
   ctx.strokeStyle = COLORS.accent; ctx.lineWidth = 1.5; ctx.strokeRect(rx, ry, rw, rh);
 }
 

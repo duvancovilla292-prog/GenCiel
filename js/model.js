@@ -1,7 +1,7 @@
 // ===== model.js · Modelo del grafo: normalización, índices, validación, CRUD, niveles y ramas =====
 // No toca el DOM: pide el redibujado con emit('render') y registra historial con commit().
 
-import { REL_LABEL, UNION_LABEL } from './config.js';
+import { REL_LABEL, UNION_LABEL, GEO } from './config.js';
 import { state, nodeMap, unionsOf, edgesOf, emit, uid, toast, isPartnerLink, nodeTitle, calculateAge } from './state.js';
 import { commit } from './history.js';
 
@@ -188,4 +188,127 @@ export function collectBranch(rootId, mode) {
   if (mode !== 'ancestors') walk(out).forEach(id => keep.add(id));
   for (const id of [...keep]) if (nodeMap.get(id)?.type === 'union') (inn.get(id) || []).forEach(p => keep.add(p));
   return keep;
+}
+
+// ---------- Familia (lectura) ----------
+const personsInto = (uId) => state.graph.edges.filter(e => e.target === uId && nodeMap.get(e.source)?.type === 'person').map(e => nodeMap.get(e.source));
+/** Uniones de las que la persona es hija. */
+export const parentUnionsOf = (pid) => state.graph.edges.filter(e => e.target === pid && nodeMap.get(e.source)?.type === 'union').map(e => nodeMap.get(e.source));
+export function parentsOf(pid) {
+  const out = [];
+  parentUnionsOf(pid).forEach(u => personsInto(u.id).forEach(p => out.push(p)));
+  state.graph.edges.forEach(e => { if (e.target === pid && nodeMap.get(e.source)?.type === 'person') out.push(nodeMap.get(e.source)); });
+  return [...new Set(out)];
+}
+/** Uniones en las que la persona es integrante (pareja). */
+export const ownUnionsOf = (pid) => state.graph.edges.filter(e => e.source === pid && nodeMap.get(e.target)?.type === 'union').map(e => nodeMap.get(e.target));
+export function partnersOf(pid) {
+  return ownUnionsOf(pid).flatMap(u => personsInto(u.id).filter(p => p.id !== pid).map(p => ({ person: p, union: u })));
+}
+export function childrenOf(pid) {
+  const kids = [];
+  ownUnionsOf(pid).forEach(u => state.graph.edges.forEach(e => { if (e.source === u.id && nodeMap.get(e.target)?.type === 'person') kids.push(nodeMap.get(e.target)); }));
+  state.graph.edges.forEach(e => { if (e.source === pid && nodeMap.get(e.target)?.type === 'person') kids.push(nodeMap.get(e.target)); });
+  return [...new Set(kids)];
+}
+export const unionChildren = (uId) => state.graph.edges.filter(e => e.source === uId).map(e => nodeMap.get(e.target)).filter(n => n?.type === 'person');
+export const unionMembers = personsInto;
+/** Hermanos: comparten al menos un padre o madre. `half` = no comparten todos. */
+export function siblingsOf(pid) {
+  const mine = new Set(parentsOf(pid).map(p => p.id)), out = new Map();
+  parentsOf(pid).forEach(par => childrenOf(par.id).forEach(k => {
+    if (k.id === pid || out.has(k.id)) return;
+    const theirs = new Set(parentsOf(k.id).map(p => p.id));
+    const half = mine.size !== theirs.size || [...mine].some(id => !theirs.has(id));
+    out.set(k.id, { person: k, half });
+  }));
+  return [...out.values()];
+}
+
+// ---------- Agregar rápido (botón "+" de cada nodo, como en n8n) ----------
+// Las posiciones nuevas se calculan relativas al nodo según la dirección del árbol:
+// "along" = hacia la siguiente generación, "across" = hacia el lado.
+const STEP = () => (state.orient === 'h' ? 300 : 270), UN = () => (state.orient === 'h' ? 150 : 160), ACROSS = () => (state.orient === 'h' ? 180 : 190);
+const at = (n, along, across) => state.orient === 'h'
+  ? { x: n.position.x + along, y: n.position.y + across }
+  : { x: n.position.x + across, y: n.position.y + along };
+function freeSpot(p, type) {
+  const g = GEO[type], step = ACROSS();
+  const busy = (q) => state.graph.nodes.some(n => Math.abs(n.position.x - q.x) < (GEO[n.type].w + g.w) / 2 - 4 && Math.abs(n.position.y - q.y) < (GEO[n.type].box + g.box) / 2 + (type === 'person' || n.type === 'person' ? GEO.person.label : 0));
+  let q = { ...p };
+  for (let i = 1; busy(q) && i < 60; i++) q = state.orient === 'h' ? { x: p.x, y: p.y + step * Math.ceil(i / 2) * (i % 2 ? 1 : -1) } : { x: p.x + step * Math.ceil(i / 2) * (i % 2 ? 1 : -1), y: p.y };
+  return q;
+}
+const firstWord = (s) => (s || '').trim().split(/\s+/)[0] || '';
+function newPerson(pos, data = {}) {
+  const n = { id: uid('p'), type: 'person', position: freeSpot(pos, 'person'), data: { firstName: '', lastName: '', gender: 'M', birthPlace: '', birthDate: '', deathDate: '', description: '', img: '', ...data } };
+  state.graph.nodes.push(n); return n;
+}
+function newUnion(pos) {
+  const n = { id: uid('u'), type: 'union', position: freeSpot(pos, 'union'), data: { status: 'active', startDate: '', endDate: '' } };
+  state.graph.nodes.push(n); return n;
+}
+const link = (s, t, child) => state.graph.edges.push(child ? { id: uid('e'), source: s, target: t, relationType: 'blood' } : { id: uid('e'), source: s, target: t });
+const done = (msg) => { emit('render'); commit(); toast(msg); };
+
+/** Agrega una pareja: usa una unión de la persona que tenga un solo integrante o crea una nueva. Devuelve la pareja. */
+export function quickPartner(pid) {
+  reindex();
+  const p = nodeMap.get(pid); if (p?.type !== 'person') return null;
+  let u = ownUnionsOf(pid).find(x => personsInto(x.id).length < 2);
+  const gender = p.data.gender === 'M' ? 'F' : p.data.gender === 'F' ? 'M' : 'O';
+  const partner = newPerson(at(p, 0, ACROSS()), { gender });
+  if (!u) { u = newUnion(at(p, UN(), ACROSS() / 2)); link(pid, u.id); }
+  link(partner.id, u.id);
+  done('Pareja agregada: escribe su nombre');
+  return partner;
+}
+/** Agrega un hijo/a a una unión (o a una persona: a su primera unión, o a una unión nueva de un solo integrante). */
+export function quickChild(id) {
+  reindex();
+  const n = nodeMap.get(id); if (!n) return null;
+  let u = n;
+  if (n.type === 'person') {
+    const us = ownUnionsOf(id);
+    u = us.find(x => (x.data.status || 'active') === 'active') || us[0];
+    if (!u) { u = newUnion(at(n, UN(), 0)); link(id, u.id); }
+  }
+  const parents = personsInto(u.id), kids = unionChildren(u.id);
+  const last = kids.sort((a, b) => (state.orient === 'h' ? a.position.y - b.position.y : a.position.x - b.position.x)).at(-1);
+  const base = last ? (state.orient === 'h' ? { x: last.position.x, y: last.position.y + ACROSS() } : { x: last.position.x + ACROSS(), y: last.position.y }) : at(u, STEP() - UN(), 0);
+  const dad = parents.find(p => p.data.gender === 'M') || parents[0], mom = parents.find(p => p !== dad);
+  const child = newPerson(base, { lastName: [firstWord(dad?.data.lastName), firstWord(mom?.data.lastName)].filter(Boolean).join(' ') });
+  link(u.id, child.id, true);
+  done('Hijo/a agregado: escribe su nombre');
+  return child;
+}
+/** Agrega padres (padre y madre con su unión). Si ya tiene una unión de padres con un integrante, completa la pareja. */
+export function quickParents(pid) {
+  reindex();
+  const p = nodeMap.get(pid); if (p?.type !== 'person') return null;
+  const pu = parentUnionsOf(pid)[0];
+  if (pu) {
+    const members = personsInto(pu.id);
+    if (members.length >= 2) { toast('Ya tiene padre y madre registrados', 'warn'); return null; }
+    const g = members[0]?.data.gender === 'M' ? 'F' : 'M';
+    const par = newPerson(at(pu, -UN(), members.length ? ACROSS() : 0), { gender: g });
+    link(par.id, pu.id);
+    done(`${g === 'F' ? 'Madre' : 'Padre'} agregado: escribe su nombre`);
+    return par;
+  }
+  if (parentsOf(pid).length) { toast('Ya tiene un vínculo directo de ascendencia', 'warn'); return null; }
+  const u = newUnion(at(p, -UN(), 0));
+  const words = (p.data.lastName || '').trim().split(/\s+/);
+  const dad = newPerson(at(p, -STEP(), -ACROSS() / 2), { gender: 'M', lastName: words[0] || '' });
+  const mom = newPerson(at(p, -STEP(), ACROSS() / 2), { gender: 'F', lastName: words[1] || '' });
+  link(dad.id, u.id); link(mom.id, u.id); link(u.id, pid, true);
+  done('Padres agregados: escribe sus nombres');
+  return dad;
+}
+/** Agrega un hermano/a (hijo/a de la misma unión de padres). */
+export function quickSibling(pid) {
+  reindex();
+  const pu = parentUnionsOf(pid)[0];
+  if (!pu) { toast('Primero agrega sus padres', 'warn'); return null; }
+  return quickChild(pu.id);
 }

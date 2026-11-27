@@ -6,7 +6,7 @@ import { DRAG_THRESHOLD, SNAP_RADIUS, SVG_NS } from './config.js';
 import { $, state, nodeMap, emit, clampScale, screenToWorld, outPt, bezier } from './state.js';
 import { validateConnection, addEdge } from './model.js';
 import { commit } from './history.js';
-import { nodeEls, isVisible, placeNodeEl, updateEdgesOf } from './render.js';
+import { nodeEls, isVisible, placeNodeEl, updateEdgesOf, renderBands } from './render.js';
 import { applyTransform, stopViewAnimation } from './view.js';
 import { openPanel, closePanel } from './panel.js';
 
@@ -62,7 +62,7 @@ function applyDrag(g) {
 function finishDrag(g) {
   cancelAnimationFrame(g.raf); applyDrag(g);
   nodeEls.get(g.node.id)?.classList.remove('dragging');
-  if (g.moved) commit();                        // mover un nodo = un paso de historial
+  if (g.moved) { commit(); renderBands(); }     // mover un nodo = un paso de historial (y las franjas se reacomodan)
 }
 
 function cancelGesture() {
@@ -73,6 +73,7 @@ function cancelGesture() {
 
 viewport.addEventListener('pointerdown', (e) => {
   if (e.pointerType === 'mouse' && e.button !== 0) return;
+  if (e.target.closest('.port-plus, .ntools')) return;     // botones de la tarjeta: los atiende el clic
   stopViewAnimation();                           // el usuario toma el control: detiene animaciones de vista
   try { viewport.setPointerCapture(e.pointerId); } catch (_) { /* opcional */ }
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -168,3 +169,12 @@ function updatePinch(g) {
   state.pan.y = (a.y + b.y) / 2 - r.top - g.world0.y * state.scale;
   applyTransform();
 }
+
+// Botones de cada tarjeta: "+" (agregar familiar) y la barrita (ficha, rama, eliminar)
+$('nodes-layer').addEventListener('click', (e) => {
+  const nodeEl = e.target.closest('.node'); if (!nodeEl) return;
+  const id = nodeEl.dataset.id;
+  if (e.target.closest('.port-plus')) { e.stopPropagation(); emit('addmenu', { id, anchor: e.target.closest('.port-plus') }); return; }
+  const tool = e.target.closest('[data-tool]')?.dataset.tool;
+  if (tool) { e.stopPropagation(); emit('nodetool', { id, tool }); }
+});

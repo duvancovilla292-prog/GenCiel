@@ -1,10 +1,10 @@
 // ===== view.js · Transformación del lienzo, animaciones, centrado y foco familiar =====
 
-import { GRID_SIZE, NODE_SIZE, HIGHLIGHT_MS } from './config.js';
-import { $, state, nodeMap, emit, clampScale, screenToWorld } from './state.js';
+import { GRID_SIZE, HIGHLIGHT_MS } from './config.js';
+import { $, state, nodeMap, emit, clampScale, screenToWorld, nodeRect } from './state.js';
 import { render, isVisible } from './render.js';
 
-const viewport = $('viewport'), workspace = $('workspace'), panel = $('details-panel');
+const viewport = $('viewport'), workspace = $('workspace');
 let viewAnim = 0;
 
 export const isDrawer = () => window.matchMedia('(max-width: 767px)').matches;   // panel como drawer inferior
@@ -14,20 +14,27 @@ export const stopViewAnimation = () => cancelAnimationFrame(viewAnim);
 export function visibleSize() {
   const r = viewport.getBoundingClientRect();
   let w = r.width, h = r.height;
-  if (document.body.classList.contains('panel-open')) { if (isDrawer()) h -= panel.offsetHeight; else w -= panel.offsetWidth; }
+  if (document.body.classList.contains('creator-open') && !isDrawer()) w -= 376;   // el panel "Agregar" tapa la derecha
   return { w, h };
 }
 
-/** Mueve el lienzo Y la cuadrícula de fondo (2 capas: punto mayor cada 5 menores). */
+/** Mueve el lienzo Y la cuadrícula de puntos del fondo (como el lienzo de n8n). */
 export function applyTransform() {
   const { pan, scale } = state;
   workspace.style.transform = `translate(${pan.x}px, ${pan.y}px) scale(${scale})`;
-  let step = GRID_SIZE * scale; while (step < 12) step *= 2;       // evita una cuadrícula ilegible al alejar
-  const big = step * 5, p = `${pan.x}px ${pan.y}px`;
-  viewport.style.backgroundSize = `${big}px ${big}px, ${step}px ${step}px`;
-  viewport.style.backgroundPosition = `${p}, ${p}`;
+  let step = GRID_SIZE * scale; while (step < 10) step *= 2;       // evita una cuadrícula ilegible al alejar
+  viewport.style.backgroundSize = `${step}px ${step}px`;
+  viewport.style.backgroundPosition = `${pan.x}px ${pan.y}px`;
+  workspace.classList.toggle('lod', scale < 0.5);                   // de lejos: solo avatar y nombre, más grande
+  $('zoom-level') && ($('zoom-level').textContent = `${Math.round(scale * 100)}%`);
   emit('view');
 }
+export function zoomBy(k) {
+  const { w, h } = visibleSize(), c = screenToWorld(viewport.getBoundingClientRect().left + w / 2, viewport.getBoundingClientRect().top + h / 2);
+  const s = clampScale(state.scale * k);
+  animateView(s, { x: w / 2 - c.x * s, y: h / 2 - c.y * s }, 200);
+}
+export function resetZoom() { zoomBy(1 / state.scale); }
 
 export function animateView(toScale, toPan, ms = 350) {
   cancelAnimationFrame(viewAnim);
@@ -50,11 +57,12 @@ export function fitView() {
   if (!nodes.length) return animateView(1, { x: 0, y: 0 });
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const n of nodes) {
-    const { w, h } = NODE_SIZE[n.type];
-    x0 = Math.min(x0, n.position.x - w / 2); x1 = Math.max(x1, n.position.x + w / 2);
-    y0 = Math.min(y0, n.position.y - h / 2); y1 = Math.max(y1, n.position.y + h / 2);
+    const r = nodeRect(n);
+    x0 = Math.min(x0, r.x0); x1 = Math.max(x1, r.x1); y0 = Math.min(y0, r.y0); y1 = Math.max(y1, r.y1);
   }
-  const { w: vw, h: vh } = visibleSize(), padX = 60, padTop = isDrawer() ? 130 : 90, padBot = 70;
+  if (state.graph.nodes.filter(n => n.type === 'person' && isVisible(n.id)).length > 1) { if (state.orient === 'h') y0 -= 60; else x0 -= 40; }   // rótulos de generación
+  // Márgenes: lo que tapan la barra de arriba y los controles de abajo (en celular, también la barra inferior)
+  const { w: vw, h: vh } = visibleSize(), padX = isDrawer() ? 14 : 60, padTop = isDrawer() ? 20 : 70, padBot = isDrawer() ? 80 : 70;
   const s = clampScale(Math.min(1.2, (vw - padX * 2) / (x1 - x0 || 1), (vh - padTop - padBot) / (y1 - y0 || 1)));
   animateView(s, { x: vw / 2 - ((x0 + x1) / 2) * s, y: padTop + (vh - padTop - padBot) / 2 - ((y0 + y1) / 2) * s });
 }

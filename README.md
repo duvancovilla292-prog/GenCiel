@@ -1,257 +1,175 @@
-# Motor Genealógico
+# GenCiel · Árbol genealógico
 
 <img width="1885" height="940" alt="image" src="https://github.com/user-attachments/assets/e90ce2da-5cb1-48ea-938d-cc05d6feb4b2" />
 
+Editor visual de árboles genealógicos que corre en el navegador, sin framework ni paso de compilación. Su aspecto se inspira en los editores de flujos tipo **n8n**: un lienzo gris con puntos, tarjetas cuadradas con el nombre debajo, conexiones con puertos de entrada y salida, un **+** en cada tarjeta para seguir construyendo y controles del lienzo abajo a la izquierda.
 
-Editor visual de árboles genealógicos que corre en el navegador, sin framework ni paso de compilación. Los nodos (personas y uniones) y las conexiones (parentesco y pareja) se dibujan sobre un lienzo infinito con zoom y desplazamiento. Los datos se sincronizan en tiempo real con **Firebase Firestore** y se respaldan en `localStorage`.
+Cada persona entra con su **cuenta de Google**. Su árbol se guarda en **Firebase Firestore**, se sincroniza en tiempo real entre sus dispositivos y además tiene respaldo en `localStorage`.
 
-## Tecnologías
+## Qué hace
 
-| Capa | Tecnología |
+| Vista | Qué muestra |
 |---|---|
-| Lógica | JavaScript vanilla (módulos ES nativos) |
-| Interfaz | HTML5 + CSS3 (variables CSS, `@media`, `:has()`, `dvh`) |
-| Gráficos | DOM para nodos, **SVG** para aristas, **Canvas 2D** para el minimapa |
-| Gestos | Pointer Events (ratón, táctil y lápiz con el mismo código) |
-| Nube | Firebase Firestore (SDK modular cargado por CDN, caché persistente en IndexedDB) |
+| **Árbol** | Lienzo infinito con zoom. De **izquierda a derecha** (estilo n8n) o de **arriba abajo**, con franjas por generación ("Generación I, II, III…"). |
+| **Línea de tiempo** | Una barra por vida, desde el nacimiento hasta hoy o hasta su partida, con ♥ en el inicio de cada unión. |
+| **Parentesco** | Eliges dos personas y te dice cómo son parientes y el camino que las une. |
+| **Estadísticas** | Personas por generación, nacimientos por década, apellidos y lugares más comunes, género, uniones. |
 
-## Estructura
+**En el lienzo**
+- **Tarjetas:** foto, o las iniciales en el color de su género. Debajo van el nombre completo (sin cortar), los años de vida y el lugar de nacimiento. Los fallecidos aparecen con borde punteado, ✝ y la foto atenuada.
+- **El "+" de cada tarjeta** (al pasar el mouse, o siempre en celular) agrega **pareja, hijo/a, padres o hermano/a**. Los crea, los conecta, los ubica cerca y abre su ficha para escribir el nombre. Los hijos reciben el primer apellido de cada padre.
+- **Barrita sobre la tarjeta:** abrir la ficha, ver su rama familiar o eliminar.
+- **Al seleccionar a alguien** se resalta su familia y lo demás se atenúa.
+- **Arrastrar desde el punto de salida** hasta otra tarjeta las conecta, con validación: no permite ciclos, uniones de más de 2 personas ni conexiones duplicadas, y avisa si las fechas no cuadran.
+- **Botón + arriba a la derecha:** panel "Agregar al árbol" con buscador, con opciones para la persona seleccionada.
+- **Controles abajo a la izquierda:** ver todo, acercar, alejar, 100 %, **Organizar** (auto-organiza por generaciones), minimapa y leyenda.
+- **De lejos** las tarjetas solo muestran el nombre, más grande.
 
-```
-motor-genealogico/
-├── index.html
-├── style.css
-├── README.md
-└── js/
-    ├── config.js     Constantes y configuración de Firebase
-    ├── state.js      Estado único, bus de eventos y utilidades puras
-    ├── model.js      Normalización, validación, CRUD, generaciones y ramas
-    ├── history.js    Deshacer / rehacer por instantáneas
-    ├── sync.js       Firestore + respaldo local + estado de sincronización
-    ├── render.js     Reconciliación DOM/SVG y actualización parcial de aristas
-    ├── view.js       Pan/zoom, animaciones, encuadre y foco familiar
-    ├── gestures.js   Pointer Events: pan, arrastre, conexión y pinch
-    ├── panel.js      Panel de detalles (lateral / drawer móvil)
-    ├── minimap.js    Minimapa de navegación
-    ├── layout.js     Auto-organización por niveles
-    ├── exporter.js   Exportación a PNG / SVG
-    ├── search.js     Buscador rápido
-    ├── stats.js      Modal de estadísticas
-    └── main.js       Cableado de la barra, atajos y arranque
-```
+**Ficha de una persona** (como la vista de detalle de un nodo en n8n)
+- **Izquierda, "Viene de":** padres y hermanos.
+- **Centro:** datos y notas.
+- **Derecha, "Continúa en":** parejas, con su unión, e hijos.
+- Tocar a un pariente abre su ficha. Desde cada columna se puede agregar familia.
+- Los cambios se guardan al momento. "Listo" solo cierra.
+- **Foto:** se sube desde el dispositivo y se reduce a 160×160 px, o se pega un enlace.
+- En celular la ficha ocupa la pantalla completa, con pestañas **Datos / Familia / Notas**.
 
-## Configuración y despliegue
+**Otros**
+- Buscador (Ctrl + K).
+- Deshacer y rehacer (Ctrl + Z / Ctrl + Y).
+- Modo claro y oscuro: se guarda en cada dispositivo y sigue el del sistema la primera vez.
+- Exportar imagen PNG o SVG, exportar e importar respaldo JSON.
 
-### 1. Ejecutar en local
+**Parentescos que reconoce**
+- **Por sangre:** padre/madre, abuelo, bisabuelo, tatarabuelo (y al revés: hijo, nieto, bisnieto…), hermano y medio hermano, tío y tío abuelo, sobrino y sobrino nieto, primo hermano, segundo, tercero…, y los casos cruzados ("prima hermana de los padres de…", "hijo de un primo hermano de…").
+- **Familia política:** pareja o expareja, suegro, yerno/nuera, cuñado, padrastro, hijastro, consuegro.
 
-Los módulos ES **no funcionan abriendo `index.html` con doble clic** (`file://`). Sirve la carpeta por HTTP:
+## Configuración de Firebase (una sola vez)
 
-```bash
-cd motor-genealogico
-python3 -m http.server 8080      # o: npx serve .
-# abre http://localhost:8080
-```
+Proyecto: `genciel-ee18b` en la [consola de Firebase](https://console.firebase.google.com/).
 
-### 2. Preparar Firestore (una sola vez)
-
-1. En la [consola de Firebase](https://console.firebase.google.com/) abre el proyecto `genciel-ee18b`.
-2. **Build → Firestore Database → Create database** (modo producción; elige la región más cercana).
-3. En la pestaña **Rules** publica unas reglas. Mientras no haya autenticación, estas limitan el acceso a la colección y al tamaño del documento:
+1. **Activar el inicio de sesión con Google:** *Build → Authentication → Get started → Sign-in method → Google → Enable*. Elige el correo de soporte y guarda.
+2. **Autorizar el dominio de la página:** *Authentication → Settings → Authorized domains → Add domain* y escribe el dominio donde está publicada (por ejemplo `tu-usuario.github.io`). `localhost` ya viene autorizado.
+3. **Publicar las reglas de Firestore:** *Build → Firestore Database → Rules*. Pega esto y pulsa **Publish**:
 
 ```
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Cada cuenta solo puede leer y escribir sus propios árboles
+    match /users/{uid}/trees/{treeId} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+    // Versión anterior (pública): solo lectura con sesión, para migrar el árbol una vez
     match /trees/{treeId} {
-      allow read: if true;
-      allow create, update: if request.resource.data.nodes is list
-                            && request.resource.data.edges is list
-                            && request.resource.size < 900 * 1024;
-      allow delete: if false;
+      allow read: if request.auth != null;
+      allow write: if false;
     }
   }
 }
 ```
 
-> **Seguridad.** La `apiKey` de Firebase para web no es un secreto, pero **estas reglas permiten que cualquiera que conozca la URL lea y escriba el árbol**. Para uso real añade [Firebase Authentication](https://firebase.google.com/docs/auth) (p. ej. acceso anónimo o Google) y restringe con `request.auth != null`, idealmente con un campo `ownerUid` en cada documento. En la consola, además, restringe la API key a tus dominios (*Google Cloud → APIs y servicios → Credenciales*).
+4. **Después de entrar la primera vez** y ver tu árbol, cierra por completo la versión anterior cambiando la regla de `trees` a `allow read, write: if false;`. Así nadie más puede leer el árbol viejo.
 
-### 3. Desplegar
+> La `apiKey` de Firebase para web no es un secreto: lo que protege los datos son las reglas. Opcional: en *Google Cloud → APIs y servicios → Credenciales* puedes restringir la API key a tu dominio.
 
-Es un sitio estático; sirve cualquier hosting estático:
+### Cómo funciona la cuenta
 
-- **GitHub Pages:** sube la carpeta, en *Settings → Pages* elige la rama y la raíz.
-- **Firebase Hosting:** `firebase init hosting` (directorio público `.`) y `firebase deploy`.
-- Netlify, Cloudflare Pages, etc.: arrastra la carpeta.
+- **Sin cuenta:** el árbol vive solo en ese dispositivo (`localStorage`). El indicador dice "Sin cuenta · solo en este dispositivo".
+- **Al entrar con Google:** el árbol se guarda en `users/{uid}/trees/{treeId}` y se sincroniza en tiempo real.
+- **Primera vez con una cuenta:**
+  - Si la cuenta aún no tiene árbol, se sube lo que hay en el dispositivo.
+  - Si el dispositivo está vacío, se trae el árbol de la versión anterior (`trees/{treeId}`). Esto solo pasa para la primera cuenta que entra en ese dispositivo.
+  - Si la cuenta ya tenía árbol, gana el de la cuenta y lo del dispositivo se guarda como copia (`…:antes-de-iniciar`).
+- **Otra cuenta en el mismo dispositivo:** nunca recibe el árbol de la anterior. Ese árbol se guarda aparte (`…:otra-cuenta`).
+- **Cerrar sesión:** el árbol queda en el dispositivo. La opción "Cerrar sesión y borrar de este dispositivo" sirve para un equipo prestado.
+- **Sin conexión:** los cambios quedan en cola y se suben al volver. Si cierras con cambios sin subir, al volver ganan los locales.
+- **Conflictos entre dispositivos:** gana la última escritura (documento completo).
+- **Tamaño:** el límite de Firestore es ~1 MB por árbol. Cada foto subida pesa ~8–15 KB; si el árbol se acerca al límite, la app avisa.
 
-Añade el dominio publicado en *Authentication → Settings → Authorized domains* si más adelante activas Auth.
+## Ejecutar en local
 
-### 4. Varios árboles
+Los módulos ES no funcionan abriendo `index.html` con doble clic (`file://`). Sirve la carpeta por HTTP:
 
-El árbol activo se identifica con el parámetro `?tree=`:
+```bash
+python3 -m http.server 8080
+```
 
-- `https://tu-sitio/` → árbol `principal`
-- `https://tu-sitio/?tree=familia-garcia` → documento `trees/familia-garcia`
+Abre http://localhost:8080. Para publicar, sirve con cualquier hosting estático, por ejemplo GitHub Pages: *Settings → Pages → rama `main`, raíz*. Hay varios árboles por cuenta con `?tree=nombre`.
 
-El id se recuerda en el navegador. Cada árbol tiene su propio respaldo local.
+## Estructura
 
-## Arquitectura
+```
+genciel/
+├── index.html        Barra superior, vistas, lienzo, panel "Agregar", ficha
+├── style.css         Tema claro/oscuro (variables), lienzo, nodos, ficha, vistas, responsive
+└── js/
+    ├── config.js     Constantes, geometría de los nodos, colores del tema, Firebase
+    ├── state.js      Estado único, bus de eventos, geometría según la dirección, utilidades
+    ├── model.js      Normalización, validación, CRUD, generaciones, familia y "agregar rápido"
+    ├── kinship.js    Cálculo de parentesco (sangre y política)
+    ├── history.js    Deshacer / rehacer por instantáneas
+    ├── sync.js       Cuenta de Google + Firestore + respaldo local + migración
+    ├── render.js     Tarjetas, conexiones y franjas de generación (reconciliación por id)
+    ├── view.js       Pan/zoom, encuadre, detalle según el zoom, foco familiar
+    ├── gestures.js   Pointer Events: mover, arrastrar, conectar, pellizcar; botones de la tarjeta
+    ├── panel.js      Ficha (columnas Viene de / datos / Continúa en)
+    ├── layout.js     Organizar por generaciones (horizontal o vertical)
+    ├── timeline.js   Línea de tiempo
+    ├── kinview.js    Vista de parentesco
+    ├── stats.js      Estadísticas
+    ├── minimap.js    Minimapa
+    ├── exporter.js   Imagen PNG / SVG con el estilo del tema
+    ├── search.js     Buscador rápido
+    └── main.js       Pestañas, controles, menús, cuenta, atajos y arranque
+```
 
 ### Principios
 
-1. **Un único estado.** `state.js` exporta el objeto `state` (`graph`, `selection`, `focus`, `scale`, `pan`…) y los índices derivados `nodeMap`, `unionsOf` y `edgesOf`. Los índices se reconstruyen en `reindex()` y nunca se guardan.
-2. **El modelo no conoce el DOM.** `model.js` y `history.js` mutan el grafo y emiten eventos; solo `render.js`, `panel.js`, `minimap.js` y `exporter.js` tocan la interfaz.
-3. **Sin dependencias circulares: comunicación por eventos.** Un bus (`EventTarget`) desacopla los módulos.
-
-| Evento | Emisor | Receptores | Significado |
-|---|---|---|---|
-| `render` | modelo, panel | `render.js` | Reconciliar el DOM con el grafo |
-| `rendered` | `render.js` | `minimap.js` | El DOM está al día |
-| `graph:changed` | `history.js`, panel | `sync.js` | El contenido cambió → persistir |
-| `graph:replaced` | undo/redo, import, nube | `panel.js`, `main.js` | Se sustituyó el grafo entero |
-| `view` | `view.js` | `minimap.js`, `sync.js` | Cambió pan/zoom |
-| `nodemoved` | `gestures.js` | `minimap.js` | Un nodo se mueve en vivo |
-| `panel:close` | modelo, historial, sync | `panel.js` | Cerrar el panel |
-| `sync:status` | `sync.js` | — | Cambió el estado de sincronización |
+1. **Un único estado** (`state.js`). Los índices `nodeMap`, `unionsOf` y `edgesOf` se reconstruyen en `reindex()` y nunca se guardan.
+2. **El modelo no conoce el DOM:** `model.js`, `kinship.js` y `history.js` mutan o leen el grafo y emiten eventos.
+3. **Sin dependencias circulares:** los módulos se comunican por un bus de eventos (`render`, `rendered`, `graph:changed`, `graph:replaced`, `view`, `nodemoved`, `panel:close`, `sync:status`, `auth`, `orient`, `addmenu`, `nodetool`, `goto:person`, `goto:tab`, `kin:from`).
+4. **Arrastre fluido:** los nodos se mueven con `transform` y, por frame, solo se recalculan las conexiones del nodo que se mueve.
 
 ### Modelo de datos
 
 ```jsonc
 {
+  "orient": "h",            // "h" = izquierda→derecha · "v" = arriba→abajo (los árboles antiguos son "v")
   "nodes": [
-    { "id": "p_x1", "type": "person", "position": { "x": 0, "y": 0 },
+    { "id": "p_x1", "type": "person", "position": { "x": 0, "y": 0 },     // position = centro de la caja
       "data": { "firstName": "", "lastName": "", "gender": "M|F|O", "birthPlace": "",
-                "birthDate": "YYYY-MM-DD", "deathDate": "", "description": "", "img": "" } },
-    { "id": "u_x2", "type": "union", "position": { "x": 0, "y": 120 },
+                "birthDate": "YYYY-MM-DD", "deathDate": "", "description": "", "img": "" } },   // img: enlace o data:image/jpeg
+    { "id": "u_x2", "type": "union", "position": { "x": 150, "y": 0 },
       "data": { "status": "active|separated|divorced", "startDate": "", "endDate": "" } }
   ],
   "edges": [
     { "id": "e_1", "source": "p_x1", "target": "u_x2" },                          // persona → unión = pareja
-    { "id": "e_2", "source": "u_x2", "target": "p_x3", "relationType": "blood" }  // unión → persona = hijo/a
+    { "id": "e_2", "source": "u_x2", "target": "p_x3", "relationType": "blood" }  // unión → persona = hijo/a (blood | adopted | stepchild)
   ]
 }
 ```
 
-`relationType`: `blood`, `adopted` o `stepchild`. `normalizeGraph()` depura cualquier dato entrante (JSON importado, nube o respaldo local): ids duplicados, aristas huérfanas, tipos desconocidos.
+## Atajos de teclado
 
-### Render y rendimiento
-
-- `render()` **reconcilia por id**: crea, actualiza o elimina elementos sin recrear los existentes ni sus listeners.
-- Los nodos se posicionan con `transform: translate()` (compositor de la GPU), no con `left/top`, así que moverlos no provoca reflow.
-- **Arrastre a 60 FPS.** Los `pointermove` se agrupan con `requestAnimationFrame`. En cada frame solo se actualiza el transform del nodo y `updateEdgesOf(id)`, que recorre únicamente las aristas incidentes (índice `edgesOf`). El estilo de las aristas y el resto del grafo no se tocan hasta soltar el nodo. El coste por frame es O(grado del nodo), no O(total de aristas).
-- El minimapa se redibuja como máximo una vez por frame.
-
-### Persistencia, historial y validación
-
-- **Historial:** instantáneas JSON (máx. 100). `commit()` se llama tras cada acción y no añade nada si el estado no cambió.
-- **Validación de conexiones:** bloquea ciclos, duplicados, unión→unión y más de 2 integrantes por unión. Avisa (sin bloquear) de diferencias de edad incoherentes o ascendencia múltiple.
-- **Generaciones:** `computeLevels()` asigna niveles por relajación (pareja = mismo nivel, hijo = fuente + 1); lo usan las estadísticas y el auto-layout.
-
-## Integración con Firebase
-
-### Modelo en Firestore
-
-```
-trees (colección)
-└── {treeId} (documento)
-    ├── schemaVersion : number
-    ├── nodes         : array de mapas
-    ├── edges         : array de mapas
-    ├── updatedAt     : number (epoch ms)
-    └── updatedBy     : string (id de la pestaña que escribió)
-```
-
-Se usa **un documento por árbol**: la escritura es atómica y un solo listener basta. El límite de Firestore es 1 MiB por documento (miles de personas); si un árbol se acerca, el siguiente paso sería pasar a subcolecciones `nodes/` y `edges/`.
-
-La vista (pan/zoom) es por dispositivo y solo vive en `localStorage`.
-
-### Flujo de sincronización
-
-1. **Arranque:** se carga el respaldo local y se pinta de inmediato. En paralelo `sync.js` importa dinámicamente el SDK y abre `onSnapshot` sobre `trees/{treeId}` con caché persistente multi-pestaña.
-2. **Escritura:** cada `graph:changed` incrementa `localVersion`, guarda el respaldo local (300 ms) y programa `setDoc` (800 ms de *debounce*). Solo hay una escritura en vuelo; los cambios intermedios se colapsan.
-3. **Confirmación:** `savedVersion` avanza únicamente cuando el servidor confirma el `setDoc`. `isDirty()` (`localVersion !== savedVersion`) indica cambios sin sincronizar.
-4. **Cambios remotos:** un snapshot confirmado por el servidor con `updatedBy` distinto reemplaza el grafo local. Entra en el historial de deshacer pero no se vuelve a subir.
-5. **Primera sincronización:**
-   - La nube no tiene el árbol y hay datos locales → se **suben** (migración desde `localStorage`).
-   - La nube tiene datos y hay cambios locales sin subir de la sesión anterior → **ganan los locales** (edición sin conexión).
-   - En cualquier otro caso → **gana la nube**.
-6. **Conflictos:** *last-write-wins* sobre el documento completo. Si hay cambios locales sin subir cuando llega un cambio remoto, prevalece lo local.
-
-### Indicador de estado
-
-| Estado | Texto | Significado |
-|---|---|---|
-| `connecting` | Conectando… | Esperando el primer dato del servidor |
-| `saving` | Guardando… | Hay cambios locales sin confirmar |
-| `saved` | Guardado en la nube | Servidor y local coinciden |
-| `offline` | Sin conexión · cambios en cola | Sin red; las escrituras se encolan en IndexedDB y suben al volver |
-| `local` | Solo local | El SDK no cargó; la app sigue con `localStorage` |
-| `error` | Error de sincronización | Reglas denegadas u otro fallo (ver aviso) |
-
-### Protector de cierre
-
-`beforeunload` muestra el diálogo del navegador **solo si `isDirty()`** (cambios sin confirmar por la nube). En modo solo local no se muestra, porque los datos ya están en el respaldo.
-
-### Versión del SDK
-
-`config.js` define `FIREBASE_VERSION` (`13.0.0`). Si esa versión no existe en el CDN, la app cae a modo local y lo avisa; cámbiala por una versión publicada (consulta las [notas de versión](https://firebase.google.com/support/release-notes/js)).
-
-## Guía de uso
-
-### Lienzo
-
-| Acción | Cómo |
+| Tecla | Acción |
 |---|---|
-| Desplazar | Arrastrar el fondo |
-| Zoom | Rueda del ratón o pellizco con dos dedos |
-| Mover un nodo | Arrastrarlo |
-| Conectar | Arrastrar desde el **puerto azul** inferior de un nodo hasta otro |
-| Editar | Clic o toque sobre un nodo o una línea |
-| Eliminar conexión | Doble clic sobre la línea, o botón *Eliminar* en su panel |
-
-Convención de conexiones: **Padre/Madre → Unión** (pareja) y **Unión → Hijo/a**. El color de la línea indica el tipo (ver la leyenda).
-
-### Funciones
-
-- **Auto-organizar:** reordena el árbol por generaciones (padres arriba, unión debajo, hijos más abajo). Es una acción de historial: *Ctrl+Z* la deshace.
-- **Foco familiar:** abre una persona y pulsa *Ascendentes*, *Descendientes* o *Ambos*. Se ocultan las demás ramas (también en el minimapa y en la exportación). Cambia el modo o sal desde la barra inferior o con *Esc*.
-- **Minimapa:** muestra el árbol y tu posición. Pulsa o arrastra sobre él para moverte.
-- **Exportar imagen:** *Imagen ▾* → PNG (2×, hasta 8192 px) o SVG vectorial. Exporta el árbol completo (o la rama enfocada), independientemente del zoom. Los avatares remotos requieren CORS; si no, se usa el avatar genérico.
-- **Buscar:** `Ctrl+K`, escribe y elige con flechas + *Enter* (sin distinguir acentos ni mayúsculas).
-- **Estadísticas:** miembros, vivos/fallecidos, generaciones, edad media y uniones.
-- **JSON:** exporta o importa el árbol completo (importar se puede deshacer).
-
-### Atajos de teclado
-
-| Atajo | Acción |
-|---|---|
-| `Ctrl/⌘ + K` | Buscar persona |
-| `Ctrl/⌘ + Z` | Deshacer |
-| `Ctrl/⌘ + Y` · `Ctrl/⌘ + Shift + Z` | Rehacer |
-| `0` | Centrar vista |
-| `L` | Auto-organizar |
-| `M` | Mostrar / ocultar minimapa |
-| `Esc` | Cierra, por orden: estadísticas → menús → panel → foco familiar |
-| `Enter` / `Espacio` sobre un nodo enfocado | Abrir su panel |
-
-Los atajos de una sola tecla se ignoran mientras escribes en un campo.
-
-### Móvil (< 768 px)
-
-- La barra se compacta: *+ Persona*, *+ Unión*, indicador de sincronización y menú **☰** con el resto de acciones; el buscador ocupa su propia fila.
-- El panel de detalles es un **drawer inferior flotante**: arrastra el asa hacia abajo para cerrarlo. Si el nodo queda tapado, el lienzo se desplaza para mostrarlo.
-- Los campos usan 16 px (evita el zoom automático de iOS) y los objetivos táctiles miden ≥ 44 px.
-- El minimapa empieza oculto; actívalo con el botón *Minimapa* del menú.
-
-### Accesibilidad
-
-Contrastes ≥ 4.5:1 en texto, foco visible con teclado, enlace *Saltar al lienzo*, nodos accesibles con `Tab` y `Enter`, combobox ARIA en el buscador, estado de sincronización anunciado (`aria-live`) con texto además de color, panel oculto fuera del árbol de accesibilidad (`inert`) y respeto de `prefers-reduced-motion`.
+| Ctrl + K | Buscar persona |
+| N | Abrir "Agregar al árbol" |
+| 0 | Ver todo el árbol |
+| + / − | Acercar / alejar |
+| L | Organizar por generaciones |
+| M | Mostrar u ocultar el minimapa |
+| Ctrl + Z / Ctrl + Y | Deshacer / rehacer |
+| Enter | Abrir la ficha de la tarjeta enfocada |
+| Esc | Cerrar menú, ficha, panel o foco |
+| Doble clic en una línea | Eliminar esa conexión |
 
 ## Solución de problemas
 
-| Síntoma | Causa probable |
+| Mensaje | Qué hacer |
 |---|---|
-| Pantalla en blanco y error de CORS / módulos | Abriste `index.html` con `file://`; sírvelo por HTTP |
-| Estado «Solo local» | El SDK no cargó (sin red, bloqueador o versión inexistente en `FIREBASE_VERSION`) |
-| Aviso «Firestore denegó…» | Reglas de seguridad no publicadas o demasiado restrictivas |
-| La exportación PNG muestra avatares genéricos | Las imágenes remotas no envían cabeceras CORS |
-| Árbol distinto en dos dispositivos | Usan distinto `?tree=` |
+| "El inicio de sesión con Google aún no está activado" | Paso 1 de la configuración. |
+| "Este dominio no está autorizado" | Paso 2: agrega el dominio de la página. |
+| "La nube denegó el acceso" | Paso 3: publica las reglas. |
+| "No se pudo cargar Firebase" | Sin conexión en la primera visita: la app sigue en modo local. |

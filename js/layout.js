@@ -10,8 +10,14 @@ import { reindex, computeLevels } from './model.js';
 import { commit } from './history.js';
 import { fitView } from './view.js';
 
-const ROW = 250, UNION_DY = 120;                 // separación entre generaciones / de la unión respecto a sus padres
-const GAP = { person: 250, union: 120 };         // distancia mínima entre centros dentro de una capa
+// Separación entre generaciones, de la unión respecto a sus padres y mínima entre centros dentro de una capa.
+// Horizontal (estilo n8n): las generaciones van de izquierda a derecha. Vertical: de arriba abajo.
+const SPACING = {
+  h: { step: 300, union: 150, gap: { person: 178, union: 80 } },
+  v: { step: 270, union: 160, gap: { person: 196, union: 110 } }
+};
+// "sec" = coordenada a lo ancho de la generación (y en horizontal, x en vertical)
+const sec = (p) => (state.orient === 'h' ? p.y : p.x), prim = (p) => (state.orient === 'h' ? p.x : p.y);
 
 /** Regresión isotónica (PAVA): secuencia no decreciente más cercana a `v` (mínimos cuadrados). */
 function isotonic(v) {
@@ -25,13 +31,14 @@ function isotonic(v) {
   return blocks.flatMap(b => Array(b.n).fill(b.s / b.n));
 }
 
-export function autoLayout() {
+export function autoLayout({ quiet = false } = {}) {
   const { nodes, edges } = state.graph;
   if (!nodes.length) return toast('No hay nada que organizar');
   reindex();
   const level = computeLevels();
   const layerOf = new Map(nodes.map(n => [n.id, level.get(n.id) * 2 + (n.type === 'union' ? 1 : 0)]));
-  const x = new Map(nodes.map((n, i) => [n.id, n.position.x + i * 0.001]));        // el desempate conserva el orden actual
+  const S = SPACING[state.orient], GAP = S.gap;
+  const x = new Map(nodes.map((n, i) => [n.id, sec(n.position) + i * 0.001]));     // el desempate conserva el orden actual
   const nbrs = new Map(nodes.map(n => [n.id, []]));
   const couples = new Map();                                                         // unión → [personas]
   for (const e of edges) {
@@ -72,12 +79,15 @@ export function autoLayout() {
   for (let it = 0; it < 2; it++) for (const k of keys) relayer(k, 'all');
 
   // Coordenadas finales, centradas sobre el centro previo del árbol
-  const yOf = (n) => level.get(n.id) * ROW + (n.type === 'union' ? UNION_DY : 0);
+  const pOf = (n) => level.get(n.id) * S.step + (n.type === 'union' ? S.union : 0);
   const mid = (vals) => (Math.min(...vals) + Math.max(...vals)) / 2;
-  const dx = mid(nodes.map(n => n.position.x)) - mid(nodes.map(n => x.get(n.id)));
-  const dy = mid(nodes.map(n => n.position.y)) - mid(nodes.map(yOf));
-  for (const n of nodes) n.position = { x: Math.round(x.get(n.id) + dx), y: Math.round(yOf(n) + dy) };
+  const ds = mid(nodes.map(n => sec(n.position))) - mid(nodes.map(n => x.get(n.id)));
+  const dp = mid(nodes.map(n => prim(n.position))) - mid(nodes.map(pOf));
+  for (const n of nodes) {
+    const a = Math.round(pOf(n) + dp), b = Math.round(x.get(n.id) + ds);
+    n.position = state.orient === 'h' ? { x: a, y: b } : { x: b, y: a };
+  }
 
   emit('render'); commit(); fitView();
-  toast('Árbol reorganizado por generaciones');
+  if (!quiet) toast('Árbol organizado por generaciones');
 }
