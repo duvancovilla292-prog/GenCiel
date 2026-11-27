@@ -167,7 +167,7 @@ export function renderBands() {
     const r = nodeRect(n);
     s0 = Math.min(s0, h ? r.y0 : r.x0); s1 = Math.max(s1, h ? r.y1 : r.x1);
   }
-  s0 -= 70; s1 += 40;
+  s0 -= h ? 70 : 170; s1 += 40;                         // en vertical, espacio a la izquierda para el rótulo
   const keys = [...groups.keys()].sort((a, b) => a - b), base = keys[0];
   keys.forEach((l, i) => {
     const ps = groups.get(l), c = ps.reduce((s, p) => s + (h ? p.position.x : p.position.y), 0) / ps.length;
