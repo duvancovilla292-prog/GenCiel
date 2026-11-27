@@ -155,6 +155,7 @@ function renderEdges() {
 const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
 export function renderBands() {
   bandsLayer.replaceChildren();
+  if (!state.showBands) return;                          // apagadas desde los controles del lienzo
   const persons = state.graph.nodes.filter(n => n.type === 'person' && isVisible(n.id));
   if (persons.length < 2) return;
   const level = computeLevels(), h = state.orient === 'h';

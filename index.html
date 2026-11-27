@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
     <script>try { var t = localStorage.getItem('genciel:theme'); if (t === 'dark' || (!t && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.dataset.theme = 'dark'; } catch (e) {}</script>
-    <link rel="stylesheet" href="style.css?v=20261127c">
+    <link rel="stylesheet" href="style.css?v=20261127d">
 </head>
 <body>
     <a class="skip-link" href="#viewport">Saltar al lienzo</a>
@@ -69,6 +69,7 @@
                     <button role="menuitem" class="only-m" data-cmd="undo">↶ Deshacer</button>
                     <button role="menuitem" class="only-m" data-cmd="redo">↷ Rehacer</button>
                     <button role="menuitem" data-cmd="theme"><span id="theme-label">🌙 Modo oscuro</span></button>
+                    <button role="menuitem" data-cmd="bands"><span id="bands-label">▤ Ocultar generaciones</span></button>
                     <button role="menuitem" data-cmd="orient"><span id="orient-label">↕ Árbol de arriba abajo</span></button>
                     <hr>
                     <button role="menuitem" data-cmd="png">🖼 Descargar imagen PNG</button>
@@ -150,6 +151,9 @@
                 </button>
                 <button type="button" id="btn-minimap" title="Minimapa (M)" aria-label="Minimapa" aria-pressed="true">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3Z"/><path d="M9 3v15M15 6v15"/></svg>
+                </button>
+                <button type="button" id="btn-bands" title="Mostrar u ocultar las generaciones (G)" aria-label="Generaciones" aria-pressed="true">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4" rx="1.5"/><rect x="3" y="10" width="18" height="4" rx="1.5"/><rect x="3" y="16" width="18" height="4" rx="1.5"/></svg>
                 </button>
                 <button type="button" id="btn-legend" title="Leyenda de las líneas" aria-label="Leyenda" aria-pressed="false">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>
@@ -373,6 +377,6 @@
     <div id="toast" role="status"></div>
 
     <!-- Módulos ES (requieren servir por http/https; ver README). Firebase se carga dinámicamente desde js/sync.js -->
-    <script type="module" src="js/main.js?v=20261127c"></script>
+    <script type="module" src="js/main.js?v=20261127d"></script>
 </body>
 </html>

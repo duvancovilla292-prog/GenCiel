@@ -33,6 +33,7 @@ export const state = {
   tab: 'home',            // 'home' | 'tree' | 'timeline' | 'kin' | 'stats'
   user: null,             // { uid, name, email, photo } cuando hay sesión de Google
   treeName: '',           // nombre del árbol abierto
+  showBands: (() => { try { return localStorage.getItem('genciel:bands') !== 'off'; } catch (_) { return true; } })(),   // franjas de generación (por dispositivo)
   trees: null             // árboles de la cuenta [{ id, name, persons, updatedAt }] (null = aún no cargados)
 };
 export const DEFAULT_TREE_NAME = 'Mi árbol familiar';

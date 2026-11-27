@@ -60,6 +60,15 @@ $('btn-zoom-out').addEventListener('click', () => zoomBy(0.8));
 $('btn-zoom-reset').addEventListener('click', resetZoom);
 $('btn-layout').addEventListener('click', () => requireEdit() && autoLayout());
 $('btn-minimap').addEventListener('click', () => setMinimapVisible($('minimap').hidden));
+// Franjas de generación: se prenden y apagan (preferencia de cada dispositivo; no cambia el árbol)
+function setBands(on_) {
+  state.showBands = on_;
+  try { localStorage.setItem('genciel:bands', on_ ? 'on' : 'off'); } catch (_) { /* opcional */ }
+  $('btn-bands').setAttribute('aria-pressed', String(on_));
+  $('bands-label').textContent = on_ ? '▤ Ocultar generaciones' : '▤ Mostrar generaciones';
+  render();
+}
+$('btn-bands').addEventListener('click', () => { setBands(!state.showBands); toast(state.showBands ? 'Generaciones visibles' : 'Generaciones ocultas'); });
 $('btn-legend').addEventListener('click', () => { const l = $('legend'); l.hidden = !l.hidden; $('btn-legend').setAttribute('aria-pressed', String(!l.hidden)); });
 $('btn-undo').addEventListener('click', () => requireEdit() && undo());
 $('btn-redo').addEventListener('click', () => requireEdit() && redo());
@@ -171,6 +180,7 @@ const CMDS = {
     if (state.graph.nodes.length) autoLayout({ quiet: true }); else emit('graph:changed');
     toast(state.orient === 'h' ? 'Árbol de izquierda a derecha' : 'Árbol de arriba abajo');
   },
+  bands: () => setBands(!state.showBands),
   png: () => exportImage('png'), svg: () => exportImage('svg'), export: exportJson, import: importPicker,
   new: () => {
     if (!state.graph.nodes.length) return;
@@ -264,6 +274,7 @@ window.addEventListener('keydown', (e) => {
     if (k === '0') fitView();
     else if (k === 'l') { if (requireEdit()) autoLayout(); }
     else if (k === 'm') setMinimapVisible($('minimap').hidden);
+    else if (k === 'g') setBands(!state.showBands);
     else if (k === 'n') { e.preventDefault(); openCreator(); }
     else if (k === '+' || k === '=') zoomBy(1.25);
     else if (k === '-') zoomBy(0.8);
@@ -280,6 +291,7 @@ applyTransform();
 setTheme(document.documentElement.dataset.theme || 'light', false);
 syncAccount();
 syncTreeName();
+setBands(state.showBands);
 setMinimapVisible(!isDrawer());         // en celular el minimapa empieza oculto
 setTab(new URLSearchParams(location.search).has('tree') ? 'tree' : 'home');   // como n8n: se entra por la lista de árboles
 if (restored) { if (!state.viewRestored) fitView(); }

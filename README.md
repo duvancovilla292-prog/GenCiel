@@ -163,6 +163,7 @@ genciel/
 | + / − | Acercar / alejar |
 | L | Organizar por generaciones |
 | M | Mostrar u ocultar el minimapa |
+| G | Mostrar u ocultar las franjas de generación |
 | Ctrl + Z / Ctrl + Y | Deshacer / rehacer |
 | Enter | Abrir la ficha de la tarjeta enfocada |
 | Esc | Cerrar menú, ficha, panel o foco |

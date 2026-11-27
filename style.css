@@ -546,7 +546,7 @@ body.readonly .nbox { cursor: pointer; }
     .fab:hover { color: var(--on-accent); }
     .canvas-top { top: auto; bottom: 14px; right: 12px; }
     .canvas-controls { left: 10px; bottom: 14px; }
-    .canvas-controls .with-label span, #btn-zoom-in, #btn-zoom-out, #btn-legend, #btn-zoom-reset, .canvas-controls .sep { display: none; }
+    .canvas-controls .with-label span, #btn-zoom-in, #btn-zoom-out, #btn-zoom-reset, .canvas-controls .sep { display: none; }
     #minimap { width: 128px; height: 84px; right: 10px; top: 10px; bottom: auto; }
     #legend { bottom: 62px; left: 10px; }
     #focus-bar { bottom: 76px; width: calc(100% - 20px); }

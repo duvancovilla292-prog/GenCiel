@@ -60,7 +60,7 @@ export function fitView() {
     const r = nodeRect(n);
     x0 = Math.min(x0, r.x0); x1 = Math.max(x1, r.x1); y0 = Math.min(y0, r.y0); y1 = Math.max(y1, r.y1);
   }
-  if (state.graph.nodes.filter(n => n.type === 'person' && isVisible(n.id)).length > 1) { if (state.orient === 'h') y0 -= 60; else x0 -= 40; }   // rótulos de generación
+  if (state.showBands && state.graph.nodes.filter(n => n.type === 'person' && isVisible(n.id)).length > 1) { if (state.orient === 'h') y0 -= 60; else x0 -= 40; }   // rótulos de generación
   // Márgenes: lo que tapan la barra de arriba y los controles de abajo (en celular, también la barra inferior)
   const { w: vw, h: vh } = visibleSize(), padX = isDrawer() ? 14 : 60, padTop = isDrawer() ? 20 : 70, padBot = isDrawer() ? 80 : 70;
   const s = clampScale(Math.min(1.2, (vw - padX * 2) / (x1 - x0 || 1), (vh - padTop - padBot) / (y1 - y0 || 1)));
