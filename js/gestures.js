@@ -3,7 +3,7 @@
 // actualiza (1) el transform del nodo y (2) la geometría de SUS aristas (updateEdgesOf). Nada más se recalcula.
 
 import { DRAG_THRESHOLD, SNAP_RADIUS, SVG_NS } from './config.js';
-import { $, state, nodeMap, emit, clampScale, screenToWorld, outPt, bezier } from './state.js';
+import { $, state, nodeMap, emit, clampScale, screenToWorld, outPt, bezier, canEdit } from './state.js';
 import { validateConnection, addEdge } from './model.js';
 import { commit } from './history.js';
 import { nodeEls, isVisible, placeNodeEl, updateEdgesOf, renderBands } from './render.js';
@@ -85,7 +85,9 @@ viewport.addEventListener('pointerdown', (e) => {
   const base = { pointerId: e.pointerId, x0: e.clientX, y0: e.clientY, moved: false };
   const nodeEl = e.target.closest('.node'), edgeEl = e.target.closest('.edge-group');
 
-  if (nodeEl && e.target.classList.contains('port')) {
+  if (!canEdit()) {                              // solo lectura: mover el lienzo y tocar para ver la ficha
+    gesture = { ...base, type: 'pan', pan0: { ...state.pan }, click: nodeEl ? { kind: 'node', id: nodeEl.dataset.id } : edgeEl ? { kind: 'edge', id: edgeEl.dataset.id } : null };
+  } else if (nodeEl && e.target.classList.contains('port')) {
     const src = nodeMap.get(nodeEl.dataset.id);
     const temp = document.createElementNS(SVG_NS, 'path');
     temp.setAttribute('class', 'edge temp');

@@ -217,6 +217,8 @@ export function render() {
   syncFocusBar();
   const empty = !state.loading && state.graph.nodes.length === 0;
   $('empty-state').hidden = !empty || state.tab !== 'tree';
+  $('empty-add').hidden = $('empty-import').hidden = !state.user;      // sin sesión: solo "Entrar con Google"
+  $('empty-signin').hidden = !!state.user;
   document.body.classList.toggle('is-empty', empty);
   emit('rendered');
 }

@@ -2,7 +2,7 @@
 // Orden de arranque: respaldo local → render → conexión con Firebase (asíncrona, con cuenta de Google).
 
 import { SCHEMA_VERSION, THEME_KEY } from './config.js';
-import { $, state, on, emit, toast, downloadBlob, esc, nodeMap, nodeTitle, fold } from './state.js';
+import { $, state, on, emit, toast, downloadBlob, esc, nodeMap, nodeTitle, fold, requireEdit, DEFAULT_TREE_NAME } from './state.js';
 import { normalizeGraph, addNode, clearGraph, removeNode, parentUnionsOf, parentsOf, unionMembers, quickParents, quickPartner, quickChild, quickSibling, reindex } from './model.js';
 import { commit, resetHistory, undo, redo } from './history.js';
 import { render } from './render.js';
@@ -16,10 +16,11 @@ import { focusSearch } from './search.js';
 import { renderStats } from './stats.js';
 import { renderTimeline } from './timeline.js';
 import { renderKin } from './kinview.js';
-import { initSync, signIn, signOut } from './sync.js';
+import { initSync, signIn, signOut, currentTreeId } from './sync.js';
+import { renderHome } from './home.js';
 
 // ---------- Pestañas (Árbol · Línea de tiempo · Parentesco · Estadísticas) ----------
-const VIEWS = { tree: null, timeline: renderTimeline, kin: renderKin, stats: renderStats };
+const VIEWS = { home: renderHome, tree: null, timeline: renderTimeline, kin: renderKin, stats: renderStats };
 function setTab(tab) {
   if (!(tab in VIEWS)) return;
   state.tab = tab;
@@ -27,8 +28,26 @@ function setTab(tab) {
   document.querySelectorAll('.view').forEach(v => { v.hidden = v.id !== 'view-' + tab; });
   document.querySelectorAll('.tab[data-tab]').forEach(b => { const on_ = b.dataset.tab === tab; b.classList.toggle('active', on_); b.setAttribute('aria-selected', String(on_)); });
   if (tab !== 'tree') { closeCreator(); hideMenus(); VIEWS[tab](); }
+  syncReadonly();
   render();
 }
+$('btn-home').addEventListener('click', () => setTab('home'));
+
+// ---------- Solo lectura sin sesión ----------
+function syncReadonly() {
+  const ro = !state.user;
+  document.body.classList.toggle('readonly', ro);
+  $('readonly-bar').hidden = !ro || state.tab !== 'tree' || !state.graph.nodes.length;
+  if (ro) closeCreator();
+}
+document.addEventListener('click', (e) => { if (e.target.closest('[data-signin]')) signIn(); });
+function syncTreeName() {
+  const n = state.treeName || (currentTreeId === 'principal' ? DEFAULT_TREE_NAME : 'Árbol sin nombre');
+  $('tree-name').textContent = n;
+  document.title = `${n} · GenCiel`;
+}
+on('treename', syncTreeName);
+on('rendered', () => { $('readonly-bar').hidden = !!state.user || state.tab !== 'tree' || !state.graph.nodes.length; });
 document.querySelectorAll('.tab[data-tab]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
 on('goto:tab', setTab);
 on('goto:person', (id) => { setTab('tree'); setTimeout(() => emit('open:person', id), 30); });
@@ -39,14 +58,15 @@ $('btn-fit').addEventListener('click', fitView);
 $('btn-zoom-in').addEventListener('click', () => zoomBy(1.25));
 $('btn-zoom-out').addEventListener('click', () => zoomBy(0.8));
 $('btn-zoom-reset').addEventListener('click', resetZoom);
-$('btn-layout').addEventListener('click', () => autoLayout());
+$('btn-layout').addEventListener('click', () => requireEdit() && autoLayout());
 $('btn-minimap').addEventListener('click', () => setMinimapVisible($('minimap').hidden));
 $('btn-legend').addEventListener('click', () => { const l = $('legend'); l.hidden = !l.hidden; $('btn-legend').setAttribute('aria-pressed', String(!l.hidden)); });
-$('btn-undo').addEventListener('click', undo);
-$('btn-redo').addEventListener('click', redo);
+$('btn-undo').addEventListener('click', () => requireEdit() && undo());
+$('btn-redo').addEventListener('click', () => requireEdit() && redo());
 
 // ---------- Agregar ----------
 function addAtCenter(type) {
+  if (!requireEdit()) return null;
   state.focus = null;                                    // un nodo nuevo quedaría oculto bajo un foco activo
   const n = addNode(type, centerPoint());
   if (type === 'person') { n.data.firstName = ''; n.data.lastName = ''; render(); openPanel('node', n.id); }
@@ -54,6 +74,7 @@ function addAtCenter(type) {
 }
 const QUICK = { partner: quickPartner, child: quickChild, parents: quickParents, sibling: quickSibling };
 function runQuick(kind, id) {
+  if (!requireEdit()) return;
   state.focus = null;
   const made = QUICK[kind](id);
   if (made) { focusNode(made.id); openPanel('node', made.id); }
@@ -93,7 +114,7 @@ function renderCreator() {
   $('creator-ctx').textContent = ref ? `Para ${ref.type === 'person' ? nodeTitle(ref) : 'la unión seleccionada'}:` : 'Toca una tarjeta para ver opciones de familia.';
   $('creator-list').innerHTML = all.length ? all.map(o => `<li><button type="button" ${o.cmd ? `data-cmd="${o.cmd}"` : `data-kind="${o.kind}" data-id="${esc(o.target || ref.id)}"`}><span class="ci">${o.icon}</span><span><b>${esc(o.label)}</b><small>${esc(o.desc)}</small></span></button></li>`).join('') : '<li class="rel-empty">Nada coincide.</li>';
 }
-function openCreator() { if (state.tab !== 'tree') setTab('tree'); $('creator').hidden = false; document.body.classList.add('creator-open'); $('creator-q').value = ''; renderCreator(); if (!isDrawer()) $('creator-q').focus(); }
+function openCreator() { if (!requireEdit()) return; if (state.tab !== 'tree') setTab('tree'); $('creator').hidden = false; document.body.classList.add('creator-open'); $('creator-q').value = ''; renderCreator(); if (!isDrawer()) $('creator-q').focus(); }
 function closeCreator() { $('creator').hidden = true; document.body.classList.remove('creator-open'); }
 $('btn-creator').addEventListener('click', () => ($('creator').hidden ? openCreator() : closeCreator()));
 $('creator-close').addEventListener('click', closeCreator);
@@ -107,6 +128,7 @@ $('creator-list').addEventListener('click', (e) => {
 // Menú del "+" de cada tarjeta
 const addMenu = $('add-menu');
 on('addmenu', ({ id, anchor }) => {
+  if (!requireEdit()) return;
   const opts = quickOptions(nodeMap.get(id)); if (!opts.length) return;
   hideMenus();
   addMenu.innerHTML = `<p class="menu-title">Agregar</p>` + opts.map(o => `<button type="button" role="menuitem" data-kind="${o.kind}" data-id="${esc(o.target || id)}"><span class="ci">${o.icon}</span><span><b>${esc(o.label)}</b><small>${esc(o.desc)}</small></span></button>`).join('')
@@ -123,7 +145,7 @@ on('nodetool', ({ id, tool }) => {
   const n = nodeMap.get(id); if (!n) return;
   if (tool === 'open') openPanel('node', id);
   else if (tool === 'focus') setFocus(id, 'both');
-  else if (tool === 'delete' && confirm(`¿Eliminar ${n.type === 'person' ? 'a ' + nodeTitle(n) : 'esta unión'}? Puedes deshacerlo con Ctrl+Z.`)) { removeNode(id); toast('Eliminado. Ctrl+Z para deshacer'); }
+  else if (tool === 'delete' && requireEdit() && confirm(`¿Eliminar ${n.type === 'person' ? 'a ' + nodeTitle(n) : 'esta unión'}? Puedes deshacerlo con Ctrl+Z.`)) { removeNode(id); toast('Eliminado. Ctrl+Z para deshacer'); }
 });
 
 // ---------- Menú ⋮ (archivo y opciones) ----------
@@ -156,9 +178,10 @@ const CMDS = {
     clearGraph(); toast('Árbol vacío. Ctrl+Z para deshacer');
   }
 };
-fileMenu.addEventListener('click', (e) => { const c = e.target.closest('[data-cmd]')?.dataset.cmd; if (c) { hideMenus(); CMDS[c](); } });
+const NEEDS_EDIT = new Set(['undo', 'redo', 'orient', 'import', 'new']);
+fileMenu.addEventListener('click', (e) => { const c = e.target.closest('[data-cmd]')?.dataset.cmd; if (c) { hideMenus(); if (NEEDS_EDIT.has(c) && !requireEdit()) return; CMDS[c](); } });
 
-$('empty-import').addEventListener('click', importPicker);
+$('empty-import').addEventListener('click', () => requireEdit() && importPicker());
 $('input-import').addEventListener('change', (e) => {
   const file = e.target.files[0]; if (!file) return;
   const reader = new FileReader();
@@ -212,7 +235,7 @@ accBtn.addEventListener('click', (e) => {
   const open = accMenu.hidden; hideMenus(); accMenu.hidden = !open; accBtn.setAttribute('aria-expanded', String(open));
 });
 accMenu.addEventListener('click', (e) => { const a = e.target.closest('[data-acc]')?.dataset.acc; if (!a) return; hideMenus(); signOut(a === 'wipe'); });
-on('auth', ({ user }) => { syncAccount(); if (user) toast(`Hola, ${user.name.split(' ')[0] || user.email}. Tu árbol se guarda en tu cuenta.`); });
+on('auth', ({ user }) => { syncAccount(); syncReadonly(); render(); if (user) toast(`Hola, ${user.name.split(' ')[0] || user.email}. Tu árbol se guarda en tu cuenta.`); });
 
 // Buscador en celular: se despliega desde la lupa
 $('btn-search').addEventListener('click', () => { document.body.classList.add('search-open'); setTimeout(() => $('search-input').focus(), 30); });
@@ -235,11 +258,11 @@ window.addEventListener('keydown', (e) => {
   }
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
   if (typing || panelOpen()) return;                     // en campos de texto, Ctrl+Z conserva su función nativa
-  if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
-  else if (mod && k === 'y') { e.preventDefault(); redo(); }
+  if (mod && k === 'z') { e.preventDefault(); if (requireEdit()) e.shiftKey ? redo() : undo(); }
+  else if (mod && k === 'y') { e.preventDefault(); if (requireEdit()) redo(); }
   else if (!mod && !e.altKey && state.tab === 'tree') {
     if (k === '0') fitView();
-    else if (k === 'l') autoLayout();
+    else if (k === 'l') { if (requireEdit()) autoLayout(); }
     else if (k === 'm') setMinimapVisible($('minimap').hidden);
     else if (k === 'n') { e.preventDefault(); openCreator(); }
     else if (k === '+' || k === '=') zoomBy(1.25);
@@ -256,6 +279,7 @@ resetHistory();
 applyTransform();
 setTheme(document.documentElement.dataset.theme || 'light', false);
 syncAccount();
+syncTreeName();
 setMinimapVisible(!isDrawer());         // en celular el minimapa empieza oculto
-setTab('tree');
+setTab(new URLSearchParams(location.search).has('tree') ? 'tree' : 'home');   // como n8n: se entra por la lista de árboles
 if (restored) { if (!state.viewRestored) fitView(); }

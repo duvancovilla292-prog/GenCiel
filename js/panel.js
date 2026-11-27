@@ -4,7 +4,7 @@
 // Los cambios se aplican al momento (cada campo confirmado es un paso de historial); "Listo" solo cierra.
 
 import { PHOTO_PX, UNION_TITLE, UNION_GLYPH } from './config.js';
-import { $, state, nodeMap, on, emit, toast, isPartnerLink, nodeTitle, calculateAge, lifeLabel, initials, esc, shrinkPhoto } from './state.js';
+import { $, state, nodeMap, on, emit, toast, isPartnerLink, nodeTitle, calculateAge, lifeLabel, initials, esc, shrinkPhoto, canEdit, requireEdit } from './state.js';
 import { validateConnection, removeEdge, removeNode, reindex, parentsOf, siblingsOf, partnersOf, childrenOf, unionMembers, unionChildren, quickParents, quickPartner, quickChild, quickSibling } from './model.js';
 import { commit } from './history.js';
 import { render } from './render.js';
@@ -114,6 +114,10 @@ export function openPanel(kind, id) {
     $('ndv-focus').hidden = $('ndv-kin').hidden = true;
     $('sec-edge').hidden = false;
   }
+  // Sin sesión: la ficha se puede leer pero no cambiar
+  const ro = !canEdit();
+  $('node-form').querySelectorAll('input, select, textarea').forEach(el => { el.disabled = ro; });
+  ndv.classList.toggle('readonly', ro);
   setOpen(true);
   render();
 }
@@ -146,7 +150,7 @@ const FIELDS = { 'f-name': 'firstName', 'f-lastname': 'lastName', 'f-gender': 'g
 Object.entries(FIELDS).forEach(([id, key]) => {
   const el = $(id);
   const apply = () => {
-    const n = selNode(); if (n?.type !== 'person') return;
+    const n = selNode(); if (n?.type !== 'person' || !canEdit()) return;
     n.data[key] = el.value;
     if (key === 'birthDate' || key === 'deathDate') updateAgeDisplay();
     fillHead(n); setPreview(n); render();
@@ -156,7 +160,7 @@ Object.entries(FIELDS).forEach(([id, key]) => {
 });
 
 // Foto: subida desde el dispositivo (se reduce a un cuadrado pequeño) o por enlace
-$('btn-photo').addEventListener('click', () => $('input-photo').click());
+$('btn-photo').addEventListener('click', () => requireEdit() && $('input-photo').click());
 $('input-photo').addEventListener('change', async (e) => {
   const file = e.target.files[0]; e.target.value = '';
   const n = selNode(); if (!file || n?.type !== 'person') return;
@@ -169,14 +173,14 @@ $('btn-photo-del').addEventListener('click', () => { const n = selNode(); if (n?
 $('f-img').addEventListener('change', () => { const n = selNode(); if (n?.type !== 'person') return; n.data.img = $('f-img').value.trim(); setPreview(n); fillHead(n); render(); commit(); });
 
 // Unión y arista: cambios en vivo, cada uno es un paso de historial
-const setUnion = (k, v) => { const n = selNode(); if (n?.type === 'union') { n.data[k] = v; fillHead(n); render(); commit(); } };
+const setUnion = (k, v) => { const n = selNode(); if (n?.type === 'union' && canEdit()) { n.data[k] = v; fillHead(n); render(); commit(); } };
 $('f-union-status').addEventListener('change', (e) => setUnion('status', e.target.value));
 $('f-union-start').addEventListener('change', (e) => setUnion('startDate', e.target.value));
 $('f-union-end').addEventListener('change', (e) => setUnion('endDate', e.target.value));
-$('f-reltype').addEventListener('change', (e) => { const ed = selEdge(); if (ed) { ed.relationType = e.target.value; render(); commit(); } });
+$('f-reltype').addEventListener('change', (e) => { const ed = selEdge(); if (ed && canEdit()) { ed.relationType = e.target.value; render(); commit(); } });
 
 $('btn-flip-edge').addEventListener('click', () => {
-  const e = selEdge(); if (!e) return;
+  const e = selEdge(); if (!e || !requireEdit()) return;
   const v = validateConnection(e.target, e.source, e.id);   // se valida la arista invertida ignorando la actual
   if (v.error) return toast(v.error.startsWith('Crearía un ciclo') ? 'Invertir crearía un ciclo' : v.error, 'error');
   [e.source, e.target] = [e.target, e.source];
@@ -188,7 +192,7 @@ $('btn-flip-edge').addEventListener('click', () => {
 
 $('node-form').addEventListener('submit', (ev) => ev.preventDefault());
 $('btn-delete-node').addEventListener('click', () => {
-  const s = state.selection; if (!s) return;
+  const s = state.selection; if (!s || !requireEdit()) return;
   const what = s.kind === 'edge' ? 'esta conexión' : nodeMap.get(s.id)?.type === 'person' ? `a ${nodeTitle(nodeMap.get(s.id))}` : 'esta unión';
   if (!confirm(`¿Eliminar ${what}? Puedes deshacerlo con Ctrl+Z.`)) return;
   s.kind === 'edge' ? removeEdge(s.id) : removeNode(s.id);
@@ -203,7 +207,7 @@ overlay.addEventListener('click', (e) => {
   if (go) return openPanel('node', go.dataset.goto);
   const add = e.target.closest('[data-add]');
   if (add) {
-    const n = selNode(); if (!n) return;
+    const n = selNode(); if (!n || !requireEdit()) return;
     const made = QUICK[add.dataset.add](n.id);
     if (made) openPanel('node', made.id);
   }
@@ -213,7 +217,7 @@ $('ndv-focus').addEventListener('click', () => { const n = selNode(); if (!n) re
 $('ndv-kin').addEventListener('click', () => { const n = selNode(); if (!n) return; closePanel(); emit('kin:from', n.id); });
 
 // Enter/Espacio sobre un nodo = abrir la ficha · doble clic en una línea = eliminarla
-$('viewport').addEventListener('dblclick', (e) => { const g = e.target.closest('.edge-group'); if (g) removeEdge(g.dataset.id); });
+$('viewport').addEventListener('dblclick', (e) => { const g = e.target.closest('.edge-group'); if (g && canEdit()) removeEdge(g.dataset.id); });
 $('nodes-layer').addEventListener('keydown', (e) => {
   const el = e.target.closest('.node');
   if (el && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openPanel('node', el.dataset.id); }

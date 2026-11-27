@@ -4,12 +4,13 @@
 
 Editor visual de árboles genealógicos que corre en el navegador, sin framework ni paso de compilación. Su aspecto se inspira en los editores de flujos tipo **n8n**: un lienzo gris con puntos, tarjetas cuadradas con el nombre debajo, conexiones con puertos de entrada y salida, un **+** en cada tarjeta para seguir construyendo y controles del lienzo abajo a la izquierda.
 
-Cada persona entra con su **cuenta de Google**. Su árbol se guarda en **Firebase Firestore**, se sincroniza en tiempo real entre sus dispositivos y además tiene respaldo en `localStorage`.
+Cada persona entra con su **cuenta de Google** y puede tener **varios árboles**. Se guardan en **Firebase Firestore**, se sincronizan en tiempo real entre sus dispositivos y además tienen respaldo en `localStorage`. **Sin sesión, GenCiel es solo de lectura**: se puede ver y recorrer, pero no agregar ni editar.
 
 ## Qué hace
 
 | Vista | Qué muestra |
 |---|---|
+| **Inicio** | Tus árboles, como la lista de flujos de n8n: crear, abrir, renombrar, duplicar, eliminar, buscar y ordenar. Se entra por aquí. |
 | **Árbol** | Lienzo infinito con zoom. De **izquierda a derecha** (estilo n8n) o de **arriba abajo**, con franjas por generación ("Generación I, II, III…"). |
 | **Línea de tiempo** | Una barra por vida, desde el nacimiento hasta hoy o hasta su partida, con ♥ en el inicio de cada unión. |
 | **Parentesco** | Eliges dos personas y te dice cómo son parientes y el camino que las une. |
@@ -77,6 +78,7 @@ service cloud.firestore {
 
 - **Sin cuenta:** el árbol vive solo en ese dispositivo (`localStorage`). El indicador dice "Sin cuenta · solo en este dispositivo".
 - **Al entrar con Google:** el árbol se guarda en `users/{uid}/trees/{treeId}` y se sincroniza en tiempo real.
+- **Varios árboles:** cada uno es un documento `users/{uid}/trees/{id}` con su nombre (`name`). Abrir uno carga `?tree={id}`; el primero se llama `principal`.
 - **Primera vez con una cuenta:**
   - Si la cuenta aún no tiene árbol, se sube lo que hay en el dispositivo.
   - Si el dispositivo está vacío, se trae el árbol de la versión anterior (`trees/{treeId}`). Esto solo pasa para la primera cuenta que entra en ese dispositivo.
@@ -117,6 +119,7 @@ genciel/
     ├── layout.js     Organizar por generaciones (horizontal o vertical)
     ├── timeline.js   Línea de tiempo
     ├── kinview.js    Vista de parentesco
+    ├── home.js       Inicio: lista de árboles de la cuenta
     ├── stats.js      Estadísticas
     ├── minimap.js    Minimapa
     ├── exporter.js   Imagen PNG / SVG con el estilo del tema

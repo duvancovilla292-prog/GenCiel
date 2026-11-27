@@ -5,29 +5,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#ffffff">
     <title>GenCiel · Árbol genealógico</title>
-    <link rel="icon" href="img/gene-sequencing.svg">
+    <link rel="icon" type="image/svg+xml" href="img/logo.svg?v=2">
+    <link rel="apple-touch-icon" href="img/logo.svg?v=2">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
     <script>try { var t = localStorage.getItem('genciel:theme'); if (t === 'dark' || (!t && matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.dataset.theme = 'dark'; } catch (e) {}</script>
-    <link rel="stylesheet" href="style.css?v=20261127a">
+    <link rel="stylesheet" href="style.css?v=20261127c">
 </head>
 <body>
     <a class="skip-link" href="#viewport">Saltar al lienzo</a>
 
     <!-- ================= Barra superior ================= -->
     <header class="topbar">
-        <div class="brand">
+        <button type="button" class="brand" id="btn-home" title="Ir a Inicio: tus árboles">
             <svg class="logo" viewBox="0 0 32 32" width="30" height="30" aria-hidden="true">
                 <rect x="1" y="1" width="30" height="30" rx="9" fill="var(--accent)"/>
                 <g fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M11 10.5c5 0 5 5.5 10 5.5M11 21.5c5 0 5-5.5 10-5.5"/></g>
                 <g fill="#fff"><rect x="6" y="7" width="7" height="7" rx="2.2"/><rect x="6" y="18" width="7" height="7" rx="2.2"/><circle cx="23" cy="16" r="3.6"/></g>
             </svg>
-            <div class="brand-txt"><b>GenCiel</b><span id="tree-name">Mi árbol familiar</span></div>
-        </div>
+            <span class="brand-txt"><b>GenCiel</b><span id="tree-name">Mi árbol familiar</span></span>
+        </button>
 
         <nav class="tabs" role="tablist" aria-label="Vistas">
-            <button role="tab" class="tab" data-tab="tree" aria-selected="true">Árbol</button>
+            <button role="tab" class="tab" data-tab="home" aria-selected="true">Inicio</button>
+            <button role="tab" class="tab" data-tab="tree" aria-selected="false">Árbol</button>
             <button role="tab" class="tab" data-tab="timeline" aria-selected="false">Línea de tiempo</button>
             <button role="tab" class="tab" data-tab="kin" aria-selected="false">Parentesco</button>
             <button role="tab" class="tab" data-tab="stats" aria-selected="false">Estadísticas</button>
@@ -91,6 +93,21 @@
     </header>
 
     <main>
+        <!-- ================= Inicio: los árboles de la cuenta ================= -->
+        <section id="view-home" class="view page" hidden aria-labelledby="home-title">
+            <div class="page-inner narrow">
+                <header class="page-head home-head">
+                    <div><h1 id="home-title">Tus árboles</h1><p>Cada árbol es una hoja aparte: abre uno para verlo y editarlo.</p></div>
+                    <button type="button" id="home-new" class="btn-primary">＋ Nuevo árbol</button>
+                </header>
+                <div id="home-tools" class="home-tools">
+                    <input type="search" id="home-q" placeholder="Buscar árbol…" aria-label="Buscar árbol" autocomplete="off">
+                    <select id="home-sort" aria-label="Ordenar"><option value="recent">Editados recientemente</option><option value="name">Por nombre</option></select>
+                </div>
+                <div id="home-list"></div>
+            </div>
+        </section>
+
         <!-- ================= Árbol (lienzo) ================= -->
         <section id="view-tree" class="view" aria-label="Árbol">
             <div id="viewport" tabindex="-1">
@@ -99,6 +116,12 @@
                     <svg id="edges-layer" aria-hidden="true"></svg>
                     <div id="nodes-layer"></div>
                 </div>
+            </div>
+
+            <!-- Sin sesión: solo lectura -->
+            <div id="readonly-bar" class="readonly-bar" hidden>
+                <span>👁 Modo lectura</span>
+                <button type="button" class="btn-primary sm" data-signin>Entrar con Google para editar</button>
             </div>
 
             <!-- Arriba a la derecha: agregar (como el "+" de n8n) -->
@@ -179,6 +202,7 @@
                     <p>Agrega a la primera persona y luego usa el <b>+</b> de su tarjeta para sumar padres, pareja e hijos.</p>
                     <div class="empty-actions">
                         <button type="button" id="empty-add" class="btn-primary">＋ Agregar primera persona</button>
+                        <button type="button" id="empty-signin" class="btn-primary" data-signin>Entrar con Google para empezar</button>
                         <button type="button" id="empty-import" class="btn-ghost">Importar un respaldo</button>
                     </div>
                 </div>
@@ -217,6 +241,7 @@
 
     <!-- Barra inferior (celular) -->
     <nav class="bottom-nav" aria-label="Vistas">
+        <button type="button" class="tab" data-tab="home"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/></svg><span>Inicio</span></button>
         <button type="button" class="tab" data-tab="tree"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><circle cx="18" cy="12" r="3"/><path d="M10 6.5c4 0 4 5.5 5 5.5M10 17.5c4 0 4-5.5 5-5.5"/></svg><span>Árbol</span></button>
         <button type="button" class="tab" data-tab="timeline"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h10M4 12h16M4 18h7"/></svg><span>Tiempo</span></button>
         <button type="button" class="tab" data-tab="kin"><svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="7" cy="7" r="3"/><circle cx="17" cy="17" r="3"/><path d="M9.5 9.5l5 5"/></svg><span>Parentesco</span></button>
@@ -335,10 +360,19 @@
         </div>
     </div>
 
+    <!-- Ventanita para nombrar un árbol -->
+    <div id="name-dialog" class="ndv-overlay name-dialog" hidden>
+        <form id="name-form" class="name-card" role="dialog" aria-modal="true" aria-labelledby="name-title">
+            <h2 id="name-title">Nuevo árbol</h2>
+            <label>Nombre <input id="name-input" maxlength="60" placeholder="Ej. Familia Rolón" autocomplete="off"></label>
+            <div class="name-acts"><button type="button" id="name-cancel" class="btn-ghost">Cancelar</button><button class="btn-primary">Guardar</button></div>
+        </form>
+    </div>
+
     <input type="file" id="input-import" accept=".json" hidden>
     <div id="toast" role="status"></div>
 
     <!-- Módulos ES (requieren servir por http/https; ver README). Firebase se carga dinámicamente desde js/sync.js -->
-    <script type="module" src="js/main.js?v=20261127a"></script>
+    <script type="module" src="js/main.js?v=20261127c"></script>
 </body>
 </html>

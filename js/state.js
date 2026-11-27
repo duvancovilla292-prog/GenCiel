@@ -12,6 +12,8 @@
 //   sync:status      → cambió el estado de sincronización
 //   auth             → cambió la sesión {user}
 //   orient           → cambió la dirección del árbol (horizontal / vertical)
+//   trees            → cambió la lista de árboles de la cuenta (Inicio)
+//   treename         → cambió el nombre del árbol abierto
 
 import { GEO } from './config.js';
 
@@ -28,9 +30,20 @@ export const state = {
   scale: 1, pan: { x: 0, y: 0 },
   loading: true,          // true mientras se espera la primera respuesta de la nube con el lienzo vacío
   viewRestored: false,    // true si el respaldo local trajo una vista guardada
-  tab: 'tree',            // 'tree' | 'timeline' | 'kin' | 'stats'
-  user: null              // { uid, name, email, photo } cuando hay sesión de Google
+  tab: 'home',            // 'home' | 'tree' | 'timeline' | 'kin' | 'stats'
+  user: null,             // { uid, name, email, photo } cuando hay sesión de Google
+  treeName: '',           // nombre del árbol abierto
+  trees: null             // árboles de la cuenta [{ id, name, persons, updatedAt }] (null = aún no cargados)
 };
+export const DEFAULT_TREE_NAME = 'Mi árbol familiar';
+
+/** Solo con sesión iniciada se puede agregar o editar. Sin sesión, el árbol se ve en modo lectura. */
+export const canEdit = () => !!state.user;
+export function requireEdit() {
+  if (canEdit()) return true;
+  toast('Inicia sesión con Google para agregar o editar', 'warn');
+  return false;
+}
 
 // Índices derivados (se reconstruyen en reindex(), model.js)
 export const nodeMap = new Map();    // id → nodo

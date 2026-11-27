@@ -15,7 +15,7 @@
 //  • Conflictos entre dispositivos: last-write-wins (documento completo).
 
 import { STORAGE_KEY, TREE_KEY, SCHEMA_VERSION, FIREBASE_VERSION, LEGACY_COLLECTION, firebaseConfig, LOCAL_DEBOUNCE_MS, CLOUD_DEBOUNCE_MS } from './config.js';
-import { $, state, on, emit, toast, clampScale } from './state.js';
+import { $, state, on, emit, toast, clampScale, DEFAULT_TREE_NAME } from './state.js';
 import { normalizeGraph } from './model.js';
 import { commit, resetHistory } from './history.js';
 
@@ -29,10 +29,11 @@ export const treeId = (() => {
   try { localStorage.setItem(TREE_KEY, id); } catch (_) { /* opcional */ }
   return id;
 })();
-const localKey = treeId === 'principal' ? STORAGE_KEY : `${STORAGE_KEY}:${treeId}`;
+const keyFor = (id) => (id === 'principal' ? STORAGE_KEY : `${STORAGE_KEY}:${id}`);
+const localKey = keyFor(treeId);
 
 let localVersion = 0, savedVersion = 0, busy = false, localTimer = 0, cloudTimer = 0, warnedLocal = false, ownerUid = '', freshDevice = false;
-const cloud = { A: null, fs: null, auth: null, db: null, ref: null, unsub: null, ready: false, fromCache: false, failed: false, slow: false, error: null };
+const cloud = { A: null, fs: null, auth: null, db: null, ref: null, unsub: null, unsubList: null, ready: false, fromCache: false, failed: false, slow: false, error: null };
 export const isDirty = () => localVersion !== savedVersion;
 
 // ---------- Estado visible ----------
@@ -59,7 +60,7 @@ function saveLocal() {
   try {
     localStorage.setItem(localKey, JSON.stringify({
       meta: { schemaVersion: SCHEMA_VERSION, savedAt: Date.now(), dirty: isDirty(), ownerUid },
-      nodes: state.graph.nodes, edges: state.graph.edges, orient: state.orient, view: { scale: state.scale, pan: state.pan }
+      name: state.treeName, nodes: state.graph.nodes, edges: state.graph.edges, orient: state.orient, view: { scale: state.scale, pan: state.pan }
     }));
   } catch (_) {
     if (!warnedLocal) { warnedLocal = true; toast('No se pudo guardar el respaldo local (almacenamiento lleno o bloqueado).', 'warn'); }
@@ -78,6 +79,7 @@ function loadLocal() {
     const d = JSON.parse(raw);
     state.graph = normalizeGraph(d);
     state.orient = orientOf(d);
+    state.treeName = typeof d.name === 'string' ? d.name : '';
     ownerUid = typeof d.meta?.ownerUid === 'string' ? d.meta.ownerUid : '';
     if (d.view) {
       state.scale = clampScale(+d.view.scale || 1);
@@ -101,6 +103,7 @@ function applyRemote(d, first) {
   try { state.graph = normalizeGraph(d); } catch (_) { return; }
   const o = orientOf(d), turned = o !== state.orient;
   state.orient = o;
+  if (typeof d.name === 'string' && d.name !== state.treeName) { state.treeName = d.name; emit('treename'); }
   savedVersion = localVersion;                               // el estado local coincide con la nube
   if (first) resetHistory(); else commit({ persist: false }); // el cambio remoto entra en el historial sin re-subirse
   if (turned) emit('orient');
@@ -165,7 +168,7 @@ async function flush() {
   busy = true;
   const version = localVersion;
   const payload = JSON.parse(JSON.stringify({           // elimina `undefined`, que Firestore rechaza
-    schemaVersion: SCHEMA_VERSION, nodes: state.graph.nodes, edges: state.graph.edges, orient: state.orient, updatedAt: Date.now(), updatedBy: clientId
+    schemaVersion: SCHEMA_VERSION, name: state.treeName || (treeId === 'principal' ? DEFAULT_TREE_NAME : 'Árbol sin nombre'), nodes: state.graph.nodes, edges: state.graph.edges, orient: state.orient, updatedAt: Date.now(), updatedBy: clientId
   }));
   const kb = JSON.stringify(payload).length / 1024;
   if (kb > 850) toast(`El árbol pesa ${Math.round(kb)} KB y el límite es ~1000 KB: usa fotos por enlace en vez de subidas.`, 'warn');
@@ -184,6 +187,8 @@ async function flush() {
 /** Cambió la sesión: se desconecta lo anterior y, con cuenta, se escucha su árbol. */
 function onUser(u) {
   if (cloud.unsub) { cloud.unsub(); cloud.unsub = null; }
+  if (cloud.unsubList) { cloud.unsubList(); cloud.unsubList = null; }
+  state.trees = null; emit('trees');
   cloud.ref = null; cloud.ready = false; cloud.error = null; cloud.slow = false;
   if (!u) {
     state.user = null;
@@ -203,6 +208,12 @@ function onUser(u) {
   emit('auth', { user: state.user });
   cloud.ref = cloud.fs.doc(cloud.db, 'users', u.uid, 'trees', treeId);
   cloud.unsub = cloud.fs.onSnapshot(cloud.ref, { includeMetadataChanges: true }, onSnapshot, onSnapshotError);
+  // Lista de árboles de la cuenta (para Inicio), en vivo
+  cloud.unsubList = cloud.fs.onSnapshot(cloud.fs.collection(cloud.db, 'users', u.uid, 'trees'), (snap) => {
+    state.trees = snap.docs.map(d => { const x = d.data() || {};
+      return { id: d.id, name: x.name || (d.id === 'principal' ? DEFAULT_TREE_NAME : 'Árbol sin nombre'), persons: (x.nodes || []).filter(n => n.type !== 'union').length, updatedAt: +x.updatedAt || 0 }; });
+    emit('trees');
+  }, () => { state.trees = []; emit('trees'); });
   setTimeout(() => { if (state.user && !cloud.ready) { cloud.slow = true; refreshStatus(); } finishLoading(); }, 8000);
   refreshStatus();
 }
@@ -259,6 +270,51 @@ export async function signOut(wipe) {
 }
 /** Cambio de dirección del árbol: se guarda con el árbol (se sincroniza). */
 export function markChanged() { emit('graph:changed'); }
+
+// ---------- Varios árboles por cuenta (Inicio) ----------
+const treeRef = (id) => cloud.fs.doc(cloud.db, 'users', state.user.uid, 'trees', id);
+const newId = () => 't_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const ready = () => !!(state.user && cloud.fs);
+/** Abre otro árbol (recarga la página con ?tree=…; antes sube lo pendiente). */
+export async function openTree(id) {
+  if (id === treeId) return emit('goto:tab', 'tree');
+  if (isDirty()) await flush();
+  saveLocal();
+  try { localStorage.setItem(TREE_KEY, id); } catch (_) { /* opcional */ }
+  location.search = '?tree=' + encodeURIComponent(id);
+}
+export async function createTree(name) {
+  if (!ready()) return;
+  const id = newId();
+  await cloud.fs.setDoc(treeRef(id), { schemaVersion: SCHEMA_VERSION, name, nodes: [], edges: [], orient: 'h', updatedAt: Date.now(), updatedBy: clientId });
+  openTree(id);
+}
+export async function renameTree(id, name) {
+  if (!ready()) return;
+  if (id === treeId) { state.treeName = name; emit('treename'); emit('graph:changed'); return; }
+  await cloud.fs.setDoc(treeRef(id), { name, updatedAt: Date.now() }, { merge: true });
+}
+export async function duplicateTree(id) {
+  if (!ready()) return;
+  let d;
+  if (id === treeId) d = { nodes: state.graph.nodes, edges: state.graph.edges, orient: state.orient, name: state.treeName || DEFAULT_TREE_NAME };
+  else { const s = await cloud.fs.getDoc(treeRef(id)); d = s.exists() ? s.data() : null; }
+  if (!d) return toast('No se encontró ese árbol', 'error');
+  await cloud.fs.setDoc(treeRef(newId()), JSON.parse(JSON.stringify({ schemaVersion: SCHEMA_VERSION, name: `${d.name || 'Árbol'} (copia)`, nodes: d.nodes || [], edges: d.edges || [], orient: d.orient || 'h', updatedAt: Date.now(), updatedBy: clientId })));
+  toast('Árbol duplicado');
+}
+export async function deleteTree(id) {
+  if (!ready()) return;
+  await cloud.fs.deleteDoc(treeRef(id));
+  try { localStorage.removeItem(keyFor(id)); } catch (_) { /* opcional */ }
+  if (id !== treeId) return toast('Árbol eliminado');
+  // Era el abierto: se pasa a otro (o a uno nuevo vacío)
+  localVersion = savedVersion = 0; state.graph = { nodes: [], edges: [] };
+  const other = (state.trees || []).find(t => t.id !== id);
+  if (other) { try { localStorage.setItem(TREE_KEY, other.id); } catch (_) { /* opcional */ } location.search = '?tree=' + encodeURIComponent(other.id); }
+  else createTree(DEFAULT_TREE_NAME);
+}
+export const currentTreeId = treeId;
 
 /** Carga el respaldo local, conecta con la nube y engancha eventos. Devuelve true si restauró datos locales. */
 export function initSync() {
